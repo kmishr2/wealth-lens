@@ -1,0 +1,82 @@
+package server
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/accounts"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/allocations"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/assets"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/auth"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/config"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/holdings"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/middleware"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/portfolios"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/prices"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/transactions"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/users"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/valuations"
+	"gorm.io/gorm"
+)
+
+func New(cfg config.Config, db *gorm.DB) *gin.Engine {
+	if cfg.AppEnv == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(middleware.RequestID())
+
+	router.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	userRepo := users.NewRepository(db)
+	authRepo := auth.NewRepository(db)
+	portfolioRepo := portfolios.NewRepository(db)
+	accountRepo := accounts.NewRepository(db)
+	assetRepo := assets.NewRepository(db)
+	transactionRepo := transactions.NewRepository(db)
+	holdingsRepo := holdings.NewRepository(db)
+	priceRepo := prices.NewRepository(db)
+
+	authService := auth.NewService(cfg, authRepo, userRepo)
+	userService := users.NewService(userRepo)
+	portfolioService := portfolios.NewService(portfolioRepo)
+	accountService := accounts.NewService(accountRepo, portfolioRepo)
+	assetService := assets.NewService(assetRepo)
+	transactionService := transactions.NewService(transactionRepo, portfolioRepo, accountRepo, assetRepo)
+	holdingsService := holdings.NewService(holdingsRepo, portfolioRepo)
+	priceService := prices.NewService(priceRepo, assetRepo)
+	valuationService := valuations.NewService(holdingsRepo, priceRepo, portfolioRepo)
+	allocationService := allocations.NewService(holdingsRepo, priceRepo, portfolioRepo)
+
+	authHandler := auth.NewHandler(authService)
+	userHandler := users.NewHandler(userService)
+	portfolioHandler := portfolios.NewHandler(portfolioService)
+	accountHandler := accounts.NewHandler(accountService)
+	assetHandler := assets.NewHandler(assetService)
+	transactionHandler := transactions.NewHandler(transactionService)
+	holdingsHandler := holdings.NewHandler(holdingsService)
+	priceHandler := prices.NewHandler(priceService)
+	valuationHandler := valuations.NewHandler(valuationService)
+	allocationHandler := allocations.NewHandler(allocationService)
+
+	v1 := router.Group("/api/v1")
+	auth.RegisterRoutes(v1, authHandler)
+
+	protected := v1.Group("")
+	protected.Use(middleware.RequireAuth(authService))
+	users.RegisterRoutes(protected, userHandler)
+	portfolios.RegisterRoutes(protected, portfolioHandler)
+	accounts.RegisterRoutes(protected, accountHandler)
+	assets.RegisterRoutes(protected, assetHandler)
+	transactions.RegisterRoutes(protected, transactionHandler)
+	holdings.RegisterRoutes(protected, holdingsHandler)
+	prices.RegisterRoutes(protected, priceHandler)
+	valuations.RegisterRoutes(protected, valuationHandler)
+	allocations.RegisterRoutes(protected, allocationHandler)
+
+	return router
+}
