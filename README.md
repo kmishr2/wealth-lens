@@ -99,6 +99,17 @@ make test
 make run
 ```
 
+Run the PostgreSQL-backed daily snapshot integration test separately:
+
+```bash
+make test-integration
+```
+
+The integration test creates a uniquely named temporary database, applies all
+migrations, seeds a deterministic ledger and asset price, runs the real daily
+snapshot job twice, verifies the calculated snapshot and immutability rules,
+and drops the temporary database. It never uses the development database.
+
 ## Daily Portfolio Snapshots
 
 Create immutable daily snapshots for every active portfolio by passing an

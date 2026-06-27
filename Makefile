@@ -1,7 +1,7 @@
 DATABASE_URL ?= postgres://wealth_lens:wealth_lens@localhost:5432/wealth_lens?sslmode=disable
 MIGRATIONS := backend/migrations
 
-.PHONY: db-up db-down migrate-up migrate-down migrate-version test run snapshot-daily
+.PHONY: db-up db-down migrate-up migrate-down migrate-version test test-integration test-all run snapshot-daily
 
 db-up:
 	docker compose up -d db
@@ -20,6 +20,11 @@ migrate-version:
 
 test:
 	cd backend && GOCACHE="$(CURDIR)/backend/.gocache" go test ./...
+
+test-integration:
+	./scripts/test-snapshot-integration.sh
+
+test-all: test test-integration
 
 run:
 	cd backend && go run ./cmd/api
