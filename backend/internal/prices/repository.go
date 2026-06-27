@@ -1,6 +1,8 @@
 package prices
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/common"
 	"gorm.io/gorm"
@@ -59,5 +61,30 @@ func (r *Repository) ListLatestByAssets(assetIDs []uuid.UUID) ([]AssetPrice, err
 		WHERE asset_id IN ?
 		ORDER BY asset_id, priced_at DESC, created_at DESC, id DESC
 	`, assetIDs).Scan(&prices).Error
+	return prices, err
+}
+
+func (r *Repository) ListLatestByAssetsAsOf(assetIDs []uuid.UUID, asOf time.Time) ([]AssetPrice, error) {
+	if len(assetIDs) == 0 {
+		return []AssetPrice{}, nil
+	}
+
+	var prices []AssetPrice
+	err := r.db.Raw(`
+		SELECT DISTINCT ON (asset_id)
+			id,
+			asset_id,
+			price,
+			currency,
+			priced_at,
+			source,
+			note,
+			created_by_user_id,
+			created_at
+		FROM asset_prices
+		WHERE asset_id IN ?
+			AND priced_at <= ?
+		ORDER BY asset_id, priced_at DESC, created_at DESC, id DESC
+	`, assetIDs, asOf).Scan(&prices).Error
 	return prices, err
 }

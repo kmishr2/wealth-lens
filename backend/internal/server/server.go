@@ -11,8 +11,11 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/config"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/holdings"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/middleware"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/performance"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/portfolios"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/prices"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/risk"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/snapshots"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/transactions"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/users"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/valuations"
@@ -40,6 +43,7 @@ func New(cfg config.Config, db *gorm.DB) *gin.Engine {
 	transactionRepo := transactions.NewRepository(db)
 	holdingsRepo := holdings.NewRepository(db)
 	priceRepo := prices.NewRepository(db)
+	snapshotRepo := snapshots.NewRepository(db)
 
 	authService := auth.NewService(cfg, authRepo, userRepo)
 	userService := users.NewService(userRepo)
@@ -51,6 +55,9 @@ func New(cfg config.Config, db *gorm.DB) *gin.Engine {
 	priceService := prices.NewService(priceRepo, assetRepo)
 	valuationService := valuations.NewService(holdingsRepo, priceRepo, portfolioRepo)
 	allocationService := allocations.NewService(holdingsRepo, priceRepo, portfolioRepo)
+	snapshotService := snapshots.NewService(snapshotRepo, holdingsRepo, priceRepo, portfolioRepo)
+	performanceService := performance.NewService(portfolioRepo, snapshotRepo, transactionRepo)
+	riskService := risk.NewService(portfolioRepo, snapshotRepo, transactionRepo)
 
 	authHandler := auth.NewHandler(authService)
 	userHandler := users.NewHandler(userService)
@@ -62,6 +69,9 @@ func New(cfg config.Config, db *gorm.DB) *gin.Engine {
 	priceHandler := prices.NewHandler(priceService)
 	valuationHandler := valuations.NewHandler(valuationService)
 	allocationHandler := allocations.NewHandler(allocationService)
+	snapshotHandler := snapshots.NewHandler(snapshotService)
+	performanceHandler := performance.NewHandler(performanceService)
+	riskHandler := risk.NewHandler(riskService)
 
 	v1 := router.Group("/api/v1")
 	auth.RegisterRoutes(v1, authHandler)
@@ -77,6 +87,9 @@ func New(cfg config.Config, db *gorm.DB) *gin.Engine {
 	prices.RegisterRoutes(protected, priceHandler)
 	valuations.RegisterRoutes(protected, valuationHandler)
 	allocations.RegisterRoutes(protected, allocationHandler)
+	snapshots.RegisterRoutes(protected, snapshotHandler)
+	performance.RegisterRoutes(protected, performanceHandler)
+	risk.RegisterRoutes(protected, riskHandler)
 
 	return router
 }

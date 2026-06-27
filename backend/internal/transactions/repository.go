@@ -1,10 +1,19 @@
 package transactions
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/common"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
+
+type ExternalCashFlowRecord struct {
+	OccurredAt time.Time       `gorm:"column:occurred_at"`
+	Currency   string          `gorm:"column:currency"`
+	Amount     decimal.Decimal `gorm:"column:amount"`
+}
 
 type Repository struct {
 	db *gorm.DB
@@ -57,4 +66,24 @@ func (r *Repository) HasReversal(transactionID uuid.UUID) (bool, error) {
 	var count int64
 	err := r.db.Model(&Transaction{}).Where("reverses_transaction_id = ?", transactionID).Count(&count).Error
 	return count > 0, err
+}
+
+func (r *Repository) ListExternalCashFlows(portfolioID uuid.UUID, startAfter time.Time, endAt time.Time) ([]ExternalCashFlowRecord, error) {
+	var cashFlows []ExternalCashFlowRecord
+	err := r.db.Raw(`
+		SELECT
+			t.occurred_at,
+			te.currency,
+			te.amount
+		FROM transaction_entries te
+		INNER JOIN transactions t ON t.id = te.transaction_id
+		LEFT JOIN transactions reversed ON reversed.id = t.reverses_transaction_id
+		WHERE t.portfolio_id = ?
+			AND t.occurred_at > ?
+			AND t.occurred_at <= ?
+			AND te.entry_kind = ?
+			AND COALESCE(reversed.transaction_type, t.transaction_type) IN (?, ?)
+		ORDER BY t.occurred_at ASC, t.created_at ASC, t.id ASC, te.id ASC
+	`, portfolioID, startAfter, endAt, EntryKindCash, TransactionTypeDeposit, TransactionTypeWithdrawal).Scan(&cashFlows).Error
+	return cashFlows, err
 }
