@@ -31,6 +31,26 @@ func (h *Handler) GetCurrent(c *gin.Context) {
 	common.RespondOK(c, http.StatusOK, allocation)
 }
 
+func (h *Handler) CalculateRebalancing(c *gin.Context) {
+	userID, portfolioID, ok := parseUserAndPortfolio(c)
+	if !ok {
+		return
+	}
+
+	var req RebalancingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.RespondError(c, common.BadRequest("Invalid request body"))
+		return
+	}
+
+	result, err := h.service.CalculateRebalancing(userID, portfolioID, req)
+	if err != nil {
+		common.RespondError(c, err)
+		return
+	}
+	common.RespondOK(c, http.StatusOK, result)
+}
+
 func parseUserAndPortfolio(c *gin.Context) (uuid.UUID, uuid.UUID, bool) {
 	userID, err := middleware.CurrentUserID(c)
 	if err != nil {

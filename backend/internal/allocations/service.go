@@ -39,36 +39,62 @@ func NewService(ledgerRepo ledgerEntryReader, priceRepo latestPriceReader, portf
 }
 
 func (s *Service) GetCurrent(userID uuid.UUID, portfolioID uuid.UUID) (PortfolioAllocationResponse, error) {
-	if _, err := s.getOwnedPortfolio(userID, portfolioID); err != nil {
+	holdingsResult, valuationResult, allocationResult, err := s.calculateCurrent(userID, portfolioID)
+	if err != nil {
 		return PortfolioAllocationResponse{}, err
+	}
+	return ToResponse(portfolioID, holdingsResult, valuationResult, allocationResult), nil
+}
+
+func (s *Service) CalculateRebalancing(userID uuid.UUID, portfolioID uuid.UUID, req RebalancingRequest) (PortfolioRebalancingResponse, error) {
+	holdingsResult, valuationResult, allocationResult, err := s.calculateCurrent(userID, portfolioID)
+	if err != nil {
+		return PortfolioRebalancingResponse{}, err
+	}
+
+	rebalancingResult, err := finance.CalculateRebalancing(finance.RebalancingInput{
+		CurrentAllocation:        allocationResult,
+		Targets:                  req.Targets,
+		DriftTolerancePercentage: req.DriftTolerancePercentage,
+	})
+	if err != nil {
+		return PortfolioRebalancingResponse{}, common.BadRequest(err.Error())
+	}
+
+	return ToRebalancingResponse(portfolioID, holdingsResult, valuationResult, allocationResult, rebalancingResult), nil
+}
+
+func (s *Service) calculateCurrent(userID uuid.UUID, portfolioID uuid.UUID) (finance.HoldingsResult, finance.PortfolioValuationResult, finance.AllocationResult, error) {
+	if _, err := s.getOwnedPortfolio(userID, portfolioID); err != nil {
+		return finance.HoldingsResult{}, finance.PortfolioValuationResult{}, finance.AllocationResult{}, err
 	}
 
 	records, err := s.ledgerRepo.ListLedgerEntries(portfolioID)
 	if err != nil {
-		return PortfolioAllocationResponse{}, err
+		return finance.HoldingsResult{}, finance.PortfolioValuationResult{}, finance.AllocationResult{}, err
 	}
 
 	holdingsResult, err := finance.CalculateHoldings(holdings.ToFinanceEntries(records))
 	if err != nil {
-		return PortfolioAllocationResponse{}, common.BadRequest(err.Error())
+		return finance.HoldingsResult{}, finance.PortfolioValuationResult{}, finance.AllocationResult{}, common.BadRequest(err.Error())
 	}
 
 	priceRecords, err := s.priceRepo.ListLatestByAssets(assetIDsFor(holdingsResult.AssetHoldings))
 	if err != nil {
-		return PortfolioAllocationResponse{}, err
+		return finance.HoldingsResult{}, finance.PortfolioValuationResult{}, finance.AllocationResult{}, err
 	}
 
 	valuationResult, err := finance.CalculatePortfolioValuation(holdingsResult, toFinancePrices(priceRecords))
 	if err != nil {
-		return PortfolioAllocationResponse{}, common.BadRequest(err.Error())
+		return finance.HoldingsResult{}, finance.PortfolioValuationResult{}, finance.AllocationResult{}, common.BadRequest(err.Error())
 	}
 
 	allocationResult, err := finance.CalculateAllocation(valuationResult)
 	if err != nil {
-		return PortfolioAllocationResponse{}, common.BadRequest(err.Error())
+		return finance.HoldingsResult{}, finance.PortfolioValuationResult{}, finance.AllocationResult{}, common.BadRequest(err.Error())
 	}
 
-	return ToResponse(portfolioID, holdingsResult, valuationResult, allocationResult), nil
+	return holdingsResult, valuationResult, allocationResult, nil
 }
 
 func (s *Service) getOwnedPortfolio(userID uuid.UUID, portfolioID uuid.UUID) (*portfolios.Portfolio, error) {

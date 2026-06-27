@@ -11,6 +11,7 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/holdings"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/portfolios"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/prices"
+	"github.com/kaustubhmishra/wealth-lens/backend/pkg/finance"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -174,5 +175,69 @@ func TestGetCurrentReturnsNotFoundForUnownedPortfolio(t *testing.T) {
 	}
 	if appErr.Status != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", appErr.Status, http.StatusNotFound)
+	}
+}
+
+func TestCalculateRebalancingUsesCurrentLedgerDerivedAllocation(t *testing.T) {
+	userID := uuid.New()
+	portfolioID := uuid.New()
+	assetID := uuid.New()
+	quantity := decimal.RequireFromString("2")
+	cash := decimal.RequireFromString("25")
+	price := decimal.RequireFromString("50")
+	service := NewService(
+		&fakeLedgerReader{
+			records: []holdings.LedgerEntryRecord{
+				{
+					EntryKind:   "asset",
+					AssetID:     assetID.String(),
+					AssetSymbol: "VTI",
+					AssetName:   "Vanguard Total Stock Market ETF",
+					AssetClass:  "equity",
+					Quantity:    &quantity,
+					Currency:    "USD",
+				},
+				{
+					EntryKind: "cash",
+					Amount:    &cash,
+					Currency:  "USD",
+				},
+			},
+		},
+		&fakeLatestPriceReader{
+			prices: []prices.AssetPrice{
+				{
+					AssetID:  assetID,
+					Price:    price,
+					Currency: "USD",
+					PricedAt: time.Now().UTC().Add(-time.Hour),
+				},
+			},
+		},
+		&fakePortfolioReader{portfolio: &portfolios.Portfolio{ID: portfolioID, UserID: userID}},
+	)
+
+	response, err := service.CalculateRebalancing(userID, portfolioID, RebalancingRequest{
+		Targets: []finance.AllocationTarget{
+			{AssetClass: "equity", Currency: "USD", TargetPercentage: decimal.RequireFromString("60")},
+			{AssetClass: "cash", Currency: "USD", TargetPercentage: decimal.RequireFromString("40")},
+		},
+		DriftTolerancePercentage: decimal.RequireFromString("1"),
+	})
+	if err != nil {
+		t.Fatalf("CalculateRebalancing returned error: %v", err)
+	}
+
+	if len(response.Items) != 2 {
+		t.Fatalf("items length = %d, want 2", len(response.Items))
+	}
+	if response.Items[0].AssetClass != "cash" || response.Items[0].Action != "increase" || !response.Items[0].SuggestedAdjustment.Equal(decimal.RequireFromString("25")) {
+		t.Fatalf("cash item = %+v, want increase by 25", response.Items[0])
+	}
+	if response.Items[1].AssetClass != "equity" || response.Items[1].Action != "decrease" || !response.Items[1].SuggestedAdjustment.Equal(decimal.RequireFromString("-25")) {
+		t.Fatalf("equity item = %+v, want decrease by 25", response.Items[1])
+	}
+	if response.MetricMetadata.Name == "" || response.DriftMetadata.Name == "" || response.AllocationMetadata.Name == "" {
+		t.Fatalf("metadata is incomplete: %+v", response)
 	}
 }
