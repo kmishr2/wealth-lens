@@ -7,3 +7,5 @@ backend/.gocache/
 # Future frontend dependencies/build output
 node_modules/
 frontend/.next/
+
+.env
