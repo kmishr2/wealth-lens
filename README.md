@@ -88,3 +88,11 @@ This project prioritizes:
 ## Status
 
 Currently in active development.
+
+## Setup commands for DB Testing
+
+cp .env.example .env
+make db-up
+make migrate-up
+make test
+make run
