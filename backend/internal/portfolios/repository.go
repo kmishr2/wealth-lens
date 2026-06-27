@@ -29,6 +29,20 @@ func (r *Repository) ListByUser(userID uuid.UUID, pagination common.Pagination) 
 	return portfolios, err
 }
 
+// ListActiveBatch returns non-deleted portfolios in a stable keyset order.
+// It is used by background jobs that must process every active portfolio
+// without loading the full table into memory.
+func (r *Repository) ListActiveBatch(afterID *uuid.UUID, limit int) ([]Portfolio, error) {
+	query := r.db.Order("id asc").Limit(limit)
+	if afterID != nil {
+		query = query.Where("id > ?", *afterID)
+	}
+
+	var portfolios []Portfolio
+	err := query.Find(&portfolios).Error
+	return portfolios, err
+}
+
 func (r *Repository) GetOwned(userID uuid.UUID, portfolioID uuid.UUID) (*Portfolio, error) {
 	var portfolio Portfolio
 	err := r.db.First(&portfolio, "id = ? AND user_id = ?", portfolioID, userID).Error

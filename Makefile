@@ -1,7 +1,7 @@
 DATABASE_URL ?= postgres://wealth_lens:wealth_lens@localhost:5432/wealth_lens?sslmode=disable
 MIGRATIONS := backend/migrations
 
-.PHONY: db-up db-down migrate-up migrate-down migrate-version test run
+.PHONY: db-up db-down migrate-up migrate-down migrate-version test run snapshot-daily
 
 db-up:
 	docker compose up -d db
@@ -23,3 +23,6 @@ test:
 
 run:
 	cd backend && go run ./cmd/api
+
+snapshot-daily:
+	cd backend && go run ./cmd/snapshots -date "$(DATE)"

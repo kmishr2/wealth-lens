@@ -91,8 +91,26 @@ Currently in active development.
 
 ## Setup commands for DB Testing
 
+```bash
 cp .env.example .env
 make db-up
 make migrate-up
 make test
 make run
+```
+
+## Daily Portfolio Snapshots
+
+Create immutable daily snapshots for every active portfolio by passing an
+explicit UTC date. The command is idempotent: an existing snapshot for the
+same portfolio and date is returned rather than duplicated.
+
+```bash
+make snapshot-daily DATE=2026-01-15
+```
+
+The command prints a JSON summary, continues when an individual portfolio
+fails, and exits with a non-zero status if any snapshot could not be created.
+Run it from cron or an external scheduler after all prices for the UTC day have
+been recorded. Use the same command with a historical date for manual
+backfills.
