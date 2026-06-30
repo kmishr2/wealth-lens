@@ -35,6 +35,24 @@ export type Portfolio = {
   updated_at: string;
 };
 
+export type AccountType =
+  | "brokerage"
+  | "retirement"
+  | "bank"
+  | "wallet"
+  | "other";
+
+export type Account = {
+  id: string;
+  portfolio_id: string;
+  name: string;
+  account_type: AccountType;
+  institution_name: string;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type FormState = {
   message: string;
   success?: boolean;
