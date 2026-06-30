@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CreatePortfolioForm } from "@/components/create-portfolio-form";
 import { apiRequest, ApiError } from "@/lib/api";
@@ -78,8 +79,9 @@ export default async function DashboardPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {portfolios.map((portfolio, index) => (
-                <article
-                  className="group rounded-3xl border border-[var(--line)] bg-[var(--surface-strong)] p-6 shadow-[0_6px_25px_rgba(23,32,28,0.04)] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow)]"
+                <Link
+                  className="focus-ring group rounded-3xl border border-[var(--line)] bg-[var(--surface-strong)] p-6 shadow-[0_6px_25px_rgba(23,32,28,0.04)] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow)]"
+                  href={`/portfolios/${portfolio.id}`}
                   key={portfolio.id}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -102,7 +104,7 @@ export default async function DashboardPage() {
                       Setup next →
                     </span>
                   </div>
-                </article>
+                </Link>
               ))}
             </div>
           )}
