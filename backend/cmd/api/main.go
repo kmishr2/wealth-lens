@@ -10,13 +10,19 @@ import (
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("invalid configuration: %v", err)
+	}
 
 	db, err := database.Connect(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("connect database: %v", err)
 	}
 
-	api := server.New(cfg, db)
+	api, err := server.New(cfg, db)
+	if err != nil {
+		log.Fatalf("configure server: %v", err)
+	}
 	if err := api.Run(cfg.HTTPAddr); err != nil {
 		log.Fatalf("run api: %v", err)
 	}

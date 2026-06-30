@@ -182,3 +182,6 @@ If the portfolio contains fund-of-funds schemes, run it again around 10:30
 IST because those NAVs may arrive the next business morning. The retry is safe
 because ingestion is idempotent. The command prints JSON and exits non-zero
 when a configured provider fails.
+
+Pending market-data task: generate an Upstox Analytics Token and complete one
+live NSE/BSE equity ingestion test before deployment.

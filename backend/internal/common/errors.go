@@ -40,6 +40,10 @@ func Conflict(message string) *AppError {
 	return NewError(http.StatusConflict, "CONFLICT", message)
 }
 
+func TooManyRequests(message string) *AppError {
+	return NewError(http.StatusTooManyRequests, "RATE_LIMITED", message)
+}
+
 func Internal(message string) *AppError {
 	return NewError(http.StatusInternalServerError, "INTERNAL_ERROR", message)
 }

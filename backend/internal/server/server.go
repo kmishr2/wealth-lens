@@ -22,12 +22,15 @@ import (
 	"gorm.io/gorm"
 )
 
-func New(cfg config.Config, db *gorm.DB) *gin.Engine {
+func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	router := gin.New()
+	if err := router.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		return nil, err
+	}
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestID())
 
@@ -74,7 +77,9 @@ func New(cfg config.Config, db *gorm.DB) *gin.Engine {
 	riskHandler := risk.NewHandler(riskService)
 
 	v1 := router.Group("/api/v1")
-	auth.RegisterRoutes(v1, authHandler)
+	authRoutes := v1.Group("")
+	authRoutes.Use(middleware.RateLimit(cfg.AuthRateLimit, cfg.AuthRateWindow))
+	auth.RegisterRoutes(authRoutes, authHandler)
 
 	protected := v1.Group("")
 	protected.Use(middleware.RequireAuth(authService))
@@ -91,5 +96,5 @@ func New(cfg config.Config, db *gorm.DB) *gin.Engine {
 	performance.RegisterRoutes(protected, performanceHandler)
 	risk.RegisterRoutes(protected, riskHandler)
 
-	return router
+	return router, nil
 }
