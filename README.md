@@ -99,6 +99,23 @@ make test
 make run
 ```
 
+In a second terminal, start the Next.js frontend:
+
+```bash
+cp frontend/.env.example frontend/.env.local
+make frontend-install
+make frontend-dev
+```
+
+Open `http://localhost:3000`. Authentication tokens are stored in HTTP-only
+cookies and all protected API calls are made from the Next.js server.
+
+Validate the frontend with:
+
+```bash
+make frontend-check
+```
+
 Run the PostgreSQL-backed daily snapshot integration test separately:
 
 ```bash
