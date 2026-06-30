@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TEST_DB_NAME="wealth_lens_test_snapshots_$$"
+TEST_DB_NAME="wealth_lens_test_backend_$$"
 TEST_DATABASE_URL="postgres://wealth_lens:wealth_lens@localhost:5432/${TEST_DB_NAME}?sslmode=disable"
 
 case "${TEST_DB_NAME}" in
@@ -40,6 +40,10 @@ docker compose exec -T db createdb -U wealth_lens "${TEST_DB_NAME}"
 migrate -path backend/migrations -database "${TEST_DATABASE_URL}" up
 
 SNAPSHOT_TEST_DATABASE_URL="${TEST_DATABASE_URL}" \
+BACKEND_TEST_DATABASE_URL="${TEST_DATABASE_URL}" \
 GOCACHE="${ROOT_DIR}/backend/.gocache" \
-  go test -C backend -tags=integration ./internal/snapshots \
-    -run '^TestDailySnapshotJobIntegration$' -count=1
+  go test -C backend -tags=integration \
+    ./internal/snapshots ./internal/transactions -count=1
+
+migrate -path backend/migrations -database "${TEST_DATABASE_URL}" down 1
+migrate -path backend/migrations -database "${TEST_DATABASE_URL}" up
