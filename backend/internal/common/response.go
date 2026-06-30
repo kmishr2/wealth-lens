@@ -8,7 +8,7 @@ import (
 
 type APIResponse[T any] struct {
 	Success bool      `json:"success"`
-	Data    T         `json:"data,omitempty"`
+	Data    *T        `json:"data,omitempty"`
 	Error   *APIError `json:"error,omitempty"`
 }
 
@@ -20,14 +20,15 @@ type APIError struct {
 func RespondOK[T any](c *gin.Context, status int, data T) {
 	c.JSON(status, APIResponse[T]{
 		Success: true,
-		Data:    data,
+		Data:    &data,
 	})
 }
 
 func RespondNoContent(c *gin.Context) {
+	data := map[string]any{}
 	c.JSON(http.StatusOK, APIResponse[map[string]any]{
 		Success: true,
-		Data:    map[string]any{},
+		Data:    &data,
 	})
 }
 
