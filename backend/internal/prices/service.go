@@ -129,6 +129,6 @@ func buildAssetPrice(userID uuid.UUID, assetID uuid.UUID, req AssetPriceCreateRe
 		PricedAt:        req.PricedAt.UTC(),
 		Source:          source,
 		Note:            strings.TrimSpace(req.Note),
-		CreatedByUserID: userID,
+		CreatedByUserID: &userID,
 	}, nil
 }

@@ -31,6 +31,19 @@ type Asset struct {
 	UpdatedAt  time.Time `gorm:"not null"`
 }
 
+type Identifier struct {
+	ID         uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	AssetID    uuid.UUID `gorm:"type:uuid;not null;index"`
+	Provider   string    `gorm:"not null"`
+	Identifier string    `gorm:"not null"`
+	CreatedAt  time.Time `gorm:"not null"`
+}
+
+type IdentifiedAsset struct {
+	Asset
+	ProviderIdentifier string `gorm:"column:provider_identifier"`
+}
+
 func (a *Asset) BeforeCreate(*gorm.DB) error {
 	if a.ID == uuid.Nil {
 		a.ID = uuid.New()

@@ -23,7 +23,7 @@ type AssetPriceResponse struct {
 	PricedAt        time.Time       `json:"priced_at"`
 	Source          string          `json:"source"`
 	Note            string          `json:"note"`
-	CreatedByUserID uuid.UUID       `json:"created_by_user_id"`
+	CreatedByUserID *uuid.UUID      `json:"created_by_user_id"`
 	CreatedAt       time.Time       `json:"created_at"`
 }
 

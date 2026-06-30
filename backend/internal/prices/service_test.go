@@ -74,7 +74,7 @@ func TestCreateAssetPriceValidatesAndDefaultsManualSource(t *testing.T) {
 	if repo.created == nil {
 		t.Fatal("repo.Create was not called")
 	}
-	if repo.created.AssetID != assetID || repo.created.CreatedByUserID != userID {
+	if repo.created.AssetID != assetID || repo.created.CreatedByUserID == nil || *repo.created.CreatedByUserID != userID {
 		t.Fatalf("created price audit fields = %+v", repo.created)
 	}
 	if repo.created.Source != defaultPriceSource {

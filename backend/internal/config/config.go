@@ -15,6 +15,9 @@ type Config struct {
 	RefreshTokenTTL    time.Duration
 	BcryptCost         int
 	TrustedProxyHeader string
+	AMFINAVURL         string
+	UpstoxAPIURL       string
+	UpstoxAccessToken  string
 }
 
 func Load() Config {
@@ -27,6 +30,9 @@ func Load() Config {
 		RefreshTokenTTL:    time.Duration(getEnvInt("REFRESH_TOKEN_TTL_HOURS", 720)) * time.Hour,
 		BcryptCost:         getEnvInt("BCRYPT_COST", 12),
 		TrustedProxyHeader: getEnv("TRUSTED_PROXY_HEADER", ""),
+		AMFINAVURL:         getEnv("AMFI_NAV_URL", "https://portal.amfiindia.com/spages/NAVAll.txt"),
+		UpstoxAPIURL:       getEnv("UPSTOX_API_URL", "https://api.upstox.com/v3/historical-candle"),
+		UpstoxAccessToken:  os.Getenv("UPSTOX_ACCESS_TOKEN"),
 	}
 }
 
