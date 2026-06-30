@@ -123,26 +123,18 @@ func (s *Service) Refresh(refreshToken string) (AuthResponse, error) {
 		return AuthResponse{}, common.BadRequest("Refresh token is required")
 	}
 
-	session, err := s.repo.GetSessionByHash(hashRefreshToken(refreshToken))
+	session, err := s.repo.ConsumeSessionByHash(hashRefreshToken(refreshToken), s.now())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return AuthResponse{}, common.Unauthorized("Invalid refresh token")
 	}
 	if err != nil {
 		return AuthResponse{}, err
 	}
-	if session.RevokedAt != nil || session.ExpiresAt.Before(s.now()) {
-		return AuthResponse{}, common.Unauthorized("Invalid refresh token")
-	}
-
 	user, err := s.userRepo.GetByID(session.UserID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return AuthResponse{}, common.Unauthorized("Invalid refresh token")
 	}
 	if err != nil {
-		return AuthResponse{}, err
-	}
-
-	if err := s.repo.RevokeSession(session.ID); err != nil {
 		return AuthResponse{}, err
 	}
 
