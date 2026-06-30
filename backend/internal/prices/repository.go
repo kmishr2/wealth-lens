@@ -6,10 +6,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/common"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Repository struct {
 	db *gorm.DB
+}
+
+func (r *Repository) CreateAutomated(price *AssetPrice) (bool, error) {
+	result := r.db.Clauses(clause.OnConflict{
+		Columns:     []clause.Column{{Name: "asset_id"}, {Name: "market_date"}, {Name: "source"}},
+		TargetWhere: clause.Where{Exprs: []clause.Expression{clause.Not(clause.Eq{Column: "market_date", Value: nil})}},
+		DoNothing:   true,
+	}).Create(price)
+	return result.RowsAffected == 1, result.Error
 }
 
 func NewRepository(db *gorm.DB) *Repository {
@@ -53,6 +63,7 @@ func (r *Repository) ListLatestByAssets(assetIDs []uuid.UUID) ([]AssetPrice, err
 			price,
 			currency,
 			priced_at,
+			market_date,
 			source,
 			note,
 			created_by_user_id,
@@ -77,6 +88,7 @@ func (r *Repository) ListLatestByAssetsAsOf(assetIDs []uuid.UUID, asOf time.Time
 			price,
 			currency,
 			priced_at,
+			market_date,
 			source,
 			note,
 			created_by_user_id,

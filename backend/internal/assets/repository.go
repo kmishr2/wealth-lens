@@ -33,3 +33,14 @@ func (r *Repository) GetByID(assetID uuid.UUID) (*Asset, error) {
 	err := r.db.First(&asset, "id = ?", assetID).Error
 	return &asset, err
 }
+
+func (r *Repository) ListActiveByProvider(provider string) ([]IdentifiedAsset, error) {
+	var result []IdentifiedAsset
+	err := r.db.Table("assets").
+		Select("assets.*, asset_identifiers.identifier AS provider_identifier").
+		Joins("JOIN asset_identifiers ON asset_identifiers.asset_id = assets.id").
+		Where("assets.is_active = ? AND asset_identifiers.provider = ?", true, provider).
+		Order("assets.id").
+		Scan(&result).Error
+	return result, err
+}

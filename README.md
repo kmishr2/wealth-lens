@@ -142,3 +142,43 @@ fails, and exits with a non-zero status if any snapshot could not be created.
 Run it from cron or an external scheduler after all prices for the UTC day have
 been recorded. Use the same command with a historical date for manual
 backfills.
+
+## Nightly Indian Market Prices
+
+The price job uses AMFI's public official daily NAV feed for Indian mutual
+funds and Upstox historical candles for NSE/BSE equities. Upstox requires an
+access or read-only analytics token in `UPSTOX_ACCESS_TOKEN`.
+
+Direct automated collection from NSE's website is deliberately not used
+because its published terms prohibit systematic automated collection unless
+separately licensed. Provider prices remain immutable and repeated runs do not
+create duplicates.
+
+Configure each asset with a stable provider identifier. Mutual funds use the
+AMFI scheme code; equities use the ISIN-based Upstox instrument key:
+
+```sql
+INSERT INTO asset_identifiers (asset_id, provider, identifier)
+VALUES
+  ('<mutual-fund-asset-uuid>', 'amfi', '120503'),
+  ('<equity-asset-uuid>', 'upstox', 'NSE_EQ|INE002A01018');
+```
+
+Run manually (the default range ends yesterday in `Asia/Kolkata`):
+
+```bash
+make prices-nightly
+make prices-nightly FROM=2026-06-25 TO=2026-06-29
+```
+
+Schedule at 00:30 IST with the deployment scheduler. For standard cron:
+
+```cron
+CRON_TZ=Asia/Kolkata
+30 0 * * * cd /absolute/path/to/wealth-lens && /usr/bin/make prices-nightly >> /var/log/wealth-lens-prices.log 2>&1
+```
+
+If the portfolio contains fund-of-funds schemes, run it again around 10:30
+IST because those NAVs may arrive the next business morning. The retry is safe
+because ingestion is idempotent. The command prints JSON and exits non-zero
+when a configured provider fails.

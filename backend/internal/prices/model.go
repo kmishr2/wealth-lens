@@ -14,9 +14,10 @@ type AssetPrice struct {
 	Price           decimal.Decimal `gorm:"type:numeric(28,10);not null"`
 	Currency        string          `gorm:"type:char(3);not null"`
 	PricedAt        time.Time       `gorm:"not null;index"`
+	MarketDate      *time.Time      `gorm:"type:date"`
 	Source          string          `gorm:"not null;default:'manual'"`
 	Note            string          `gorm:"not null;default:''"`
-	CreatedByUserID uuid.UUID       `gorm:"type:uuid;not null;index"`
+	CreatedByUserID *uuid.UUID      `gorm:"type:uuid;index"`
 	CreatedAt       time.Time       `gorm:"not null"`
 }
 
