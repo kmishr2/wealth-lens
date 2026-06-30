@@ -22,7 +22,7 @@ test:
 	cd backend && GOCACHE="$(CURDIR)/backend/.gocache" go test ./...
 
 test-integration:
-	./scripts/test-snapshot-integration.sh
+	./scripts/test-backend-integration.sh
 
 test-all: test frontend-check test-integration
 

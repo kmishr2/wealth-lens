@@ -116,15 +116,15 @@ Validate the frontend with:
 make frontend-check
 ```
 
-Run the PostgreSQL-backed daily snapshot integration test separately:
+Run the PostgreSQL-backed integration tests separately:
 
 ```bash
 make test-integration
 ```
 
 The integration test creates a uniquely named temporary database, applies all
-migrations, seeds a deterministic ledger and asset price, runs the real daily
-snapshot job twice, verifies the calculated snapshot and immutability rules,
+migrations, verifies ledger ownership and relationship constraints, runs the
+real daily snapshot job twice, verifies calculated snapshots and immutability,
 and drops the temporary database. It never uses the development database.
 
 ## Daily Portfolio Snapshots
