@@ -58,6 +58,23 @@ func ToConcentrationResponse(portfolioID uuid.UUID, holdings finance.HoldingsRes
 	}
 }
 
+type PortfolioDiversificationAlertsResponse struct {
+	PortfolioID           uuid.UUID                      `json:"portfolio_id"`
+	Alerts                []finance.DiversificationAlert `json:"alerts"`
+	AlertScope            string                         `json:"alert_scope"`
+	AlertMetadata         finance.MetricDefinition       `json:"alert_metadata"`
+	ConcentrationMetadata finance.MetricDefinition       `json:"concentration_metadata"`
+	AllocationMetadata    finance.MetricDefinition       `json:"allocation_metadata"`
+	ValuationMetadata     finance.MetricDefinition       `json:"valuation_metadata"`
+	HoldingsMetadata      finance.MetricDefinition       `json:"holdings_metadata"`
+}
+
+func ToDiversificationAlertsResponse(portfolioID uuid.UUID, holdings finance.HoldingsResult, valuation finance.PortfolioValuationResult, allocation finance.AllocationResult, concentration finance.ConcentrationResult, alerts finance.DiversificationAlertResult) PortfolioDiversificationAlertsResponse {
+	return PortfolioDiversificationAlertsResponse{PortfolioID: portfolioID, Alerts: alerts.Alerts, AlertScope: alerts.Scope,
+		AlertMetadata: alerts.Definition, ConcentrationMetadata: concentration.Definition, AllocationMetadata: allocation.Definition,
+		ValuationMetadata: valuation.Definition, HoldingsMetadata: holdings.Definition}
+}
+
 type RebalancingRequest struct {
 	Targets                  []finance.AllocationTarget `json:"targets"`
 	DriftTolerancePercentage decimal.Decimal            `json:"drift_tolerance_percentage"`

@@ -235,6 +235,32 @@ func TestGetConcentrationRejectsIncompleteValuation(t *testing.T) {
 	}
 }
 
+func TestGetDiversificationAlertsUsesCurrentLedgerDerivedHoldings(t *testing.T) {
+	userID := uuid.New()
+	portfolioID := uuid.New()
+	assetID := uuid.New()
+	quantity := decimal.NewFromInt(2)
+	price := decimal.NewFromInt(50)
+	service := NewService(
+		&fakeLedgerReader{records: []holdings.LedgerEntryRecord{{
+			EntryKind: "asset", AssetID: assetID.String(), AssetSymbol: "AAA", AssetName: "Only Asset", AssetClass: "equity", Quantity: &quantity, Currency: "INR",
+		}}},
+		&fakeLatestPriceReader{prices: []prices.AssetPrice{{AssetID: assetID, Price: price, Currency: "INR", PricedAt: time.Now().UTC()}}},
+		&fakePortfolioReader{portfolio: &portfolios.Portfolio{ID: portfolioID, UserID: userID}},
+	)
+
+	response, err := service.GetDiversificationAlerts(userID, portfolioID)
+	if err != nil {
+		t.Fatalf("GetDiversificationAlerts returned error: %v", err)
+	}
+	if len(response.Alerts) != 1 || response.Alerts[0].Severity != "critical" || response.Alerts[0].Points != 0 {
+		t.Fatalf("alerts = %+v", response.Alerts)
+	}
+	if len(response.Alerts[0].Conditions) != 2 || response.AlertMetadata.Formula == "" || response.ConcentrationMetadata.Formula == "" {
+		t.Fatalf("response metadata = %+v", response)
+	}
+}
+
 func TestCalculateRebalancingUsesCurrentLedgerDerivedAllocation(t *testing.T) {
 	userID := uuid.New()
 	portfolioID := uuid.New()

@@ -58,6 +58,19 @@ func (s *Service) GetConcentration(userID uuid.UUID, portfolioID uuid.UUID) (Por
 	return ToConcentrationResponse(portfolioID, holdingsResult, valuationResult, allocationResult, concentration), nil
 }
 
+func (s *Service) GetDiversificationAlerts(userID uuid.UUID, portfolioID uuid.UUID) (PortfolioDiversificationAlertsResponse, error) {
+	holdingsResult, valuationResult, allocationResult, err := s.calculateCurrent(userID, portfolioID)
+	if err != nil {
+		return PortfolioDiversificationAlertsResponse{}, err
+	}
+	concentration, err := finance.CalculateConcentration(allocationResult)
+	if err != nil {
+		return PortfolioDiversificationAlertsResponse{}, common.BadRequest(err.Error())
+	}
+	alerts := finance.CalculateDiversificationAlerts(concentration)
+	return ToDiversificationAlertsResponse(portfolioID, holdingsResult, valuationResult, allocationResult, concentration, alerts), nil
+}
+
 func (s *Service) CalculateRebalancing(userID uuid.UUID, portfolioID uuid.UUID, req RebalancingRequest) (PortfolioRebalancingResponse, error) {
 	holdingsResult, valuationResult, allocationResult, err := s.calculateCurrent(userID, portfolioID)
 	if err != nil {

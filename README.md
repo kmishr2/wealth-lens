@@ -280,6 +280,12 @@ explicit market prices. It reports HHI, effective asset count, and the largest
 asset percentage. Cash, currency conversion, subjective labels, and advisory
 thresholds are excluded. A complete valuation is required.
 
+`GET /api/v1/portfolios/<portfolio-id>/diversification-alerts` applies the
+disclosed health-score diversification bands to the same current valuation.
+It returns `none`, `notice`, `warning`, or `critical` based on the lower of the
+largest-asset and holding-count band scores, together with every triggered
+condition. These are factual threshold alerts, not investment recommendations.
+
 ## Portfolio Health Score
 
 The health score is calculated separately per currency from five disclosed
