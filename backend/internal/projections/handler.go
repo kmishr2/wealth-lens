@@ -1,0 +1,37 @@
+package projections
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/common"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/middleware"
+)
+
+type Handler struct{ service *Service }
+
+func NewHandler(service *Service) *Handler { return &Handler{service: service} }
+func (h *Handler) CalculateSIP(c *gin.Context) {
+	userID, err := middleware.CurrentUserID(c)
+	if err != nil {
+		common.RespondError(c, err)
+		return
+	}
+	portfolioID, err := uuid.Parse(c.Param("portfolioId"))
+	if err != nil {
+		common.RespondError(c, common.NotFound("Portfolio not found"))
+		return
+	}
+	var req SIPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.RespondError(c, common.BadRequest("Invalid request body"))
+		return
+	}
+	response, err := h.service.CalculateSIP(userID, portfolioID, req)
+	if err != nil {
+		common.RespondError(c, err)
+		return
+	}
+	common.RespondOK(c, http.StatusOK, response)
+}

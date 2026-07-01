@@ -311,3 +311,29 @@ Assets now expose an optional `risk_category`: `equity`, `debt`, or
 `cash_other`. Equity, bond, and cash asset classes receive deterministic
 defaults. Funds and other ambiguous asset classes must be classified explicitly
 or receive the partial-data-quality score.
+
+## SIP Projections
+
+SIP projections are stateless deterministic scenarios. The caller supplies the
+currency, initial investment, monthly contribution, nominal annual return,
+optional non-negative inflation, and a horizon from 1 to 1200 months.
+
+```bash
+curl -X POST "$API_URL/api/v1/portfolios/<portfolio-id>/projections/sip" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "currency": "INR",
+    "initial_investment": "100000",
+    "monthly_contribution": "10000",
+    "annual_return_percentage": "10",
+    "annual_inflation_percentage": "6",
+    "months": 120
+  }'
+```
+
+Contributions are applied at each month end and rates compound monthly. The
+response includes every monthly point, total contributions, nominal growth,
+and nominal and inflation-adjusted values. Assumed returns remain explicit and
+are simulations, not predictions. Projected values are never stored as
+portfolio truth.
