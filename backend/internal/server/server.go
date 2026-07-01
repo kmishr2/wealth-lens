@@ -9,6 +9,7 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/assets"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/auth"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/benchmarks"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/beta"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/config"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/goals"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/health"
@@ -69,6 +70,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	benchmarkService := benchmarks.NewService(benchmarkRepo, portfolioRepo, snapshotRepo)
 	goalService := goals.NewService(goalRepo, portfolioRepo, snapshotRepo)
 	healthService := health.NewService(allocationService, riskService)
+	betaService := beta.NewService(portfolioRepo, benchmarkRepo, snapshotRepo, transactionRepo)
 
 	authHandler := auth.NewHandler(authService)
 	userHandler := users.NewHandler(userService)
@@ -86,6 +88,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	benchmarkHandler := benchmarks.NewHandler(benchmarkService)
 	goalHandler := goals.NewHandler(goalService)
 	healthHandler := health.NewHandler(healthService)
+	betaHandler := beta.NewHandler(betaService)
 
 	v1 := router.Group("/api/v1")
 	authRoutes := v1.Group("")
@@ -109,6 +112,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	benchmarks.RegisterRoutes(protected, benchmarkHandler)
 	goals.RegisterRoutes(protected, goalHandler)
 	health.RegisterRoutes(protected, healthHandler)
+	beta.RegisterRoutes(protected, betaHandler)
 
 	return router, nil
 }

@@ -260,6 +260,18 @@ The response includes portfolio total return, benchmark total return,
 portfolio CAGR, benchmark CAGR, excess return, excess CAGR, and metric metadata
 explaining the formula and assumptions.
 
+Historical beta is available from:
+
+```bash
+curl "$API_URL/api/v1/portfolios/<portfolio-id>/benchmarks/<benchmark-id>/beta?start_date=2026-01-01&end_date=2026-06-30&currency=INR" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Beta uses exact dates shared by immutable daily portfolio snapshots and
+benchmark observations. Portfolio returns remove ledger-derived deposits and
+withdrawals. At least three aligned observations and non-zero benchmark return
+variance are required; no interpolation or currency conversion is performed.
+
 ## Asset Concentration
 
 `GET /api/v1/portfolios/<portfolio-id>/concentration` calculates asset

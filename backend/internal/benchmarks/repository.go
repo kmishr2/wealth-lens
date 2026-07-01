@@ -58,3 +58,10 @@ func (r *Repository) GetObservationByDate(benchmarkID uuid.UUID, observationDate
 		First(&observation).Error
 	return &observation, err
 }
+
+func (r *Repository) ListObservationsByDateRange(benchmarkID uuid.UUID, startDate, endDate time.Time) ([]BenchmarkObservation, error) {
+	var observations []BenchmarkObservation
+	err := r.db.Where("benchmark_id = ? AND observation_date >= ? AND observation_date <= ?", benchmarkID, startDate, endDate).
+		Order("observation_date asc, created_at asc, id asc").Find(&observations).Error
+	return observations, err
+}
