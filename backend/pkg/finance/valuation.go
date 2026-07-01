@@ -27,15 +27,16 @@ type PortfolioValuationResult struct {
 }
 
 type AssetValuation struct {
-	AssetID     string          `json:"asset_id"`
-	AssetSymbol string          `json:"asset_symbol"`
-	AssetName   string          `json:"asset_name"`
-	AssetClass  string          `json:"asset_class"`
-	Quantity    decimal.Decimal `json:"quantity"`
-	Price       decimal.Decimal `json:"price"`
-	Currency    string          `json:"currency"`
-	MarketValue decimal.Decimal `json:"market_value"`
-	PricedAt    time.Time       `json:"priced_at"`
+	AssetID      string          `json:"asset_id"`
+	AssetSymbol  string          `json:"asset_symbol"`
+	AssetName    string          `json:"asset_name"`
+	AssetClass   string          `json:"asset_class"`
+	RiskCategory string          `json:"risk_category"`
+	Quantity     decimal.Decimal `json:"quantity"`
+	Price        decimal.Decimal `json:"price"`
+	Currency     string          `json:"currency"`
+	MarketValue  decimal.Decimal `json:"market_value"`
+	PricedAt     time.Time       `json:"priced_at"`
 }
 
 type CurrencyValue struct {
@@ -110,15 +111,16 @@ func CalculatePortfolioValuation(holdings HoldingsResult, prices []ValuationPric
 
 		marketValue := holding.Quantity.Mul(price.Price)
 		assetValues = append(assetValues, AssetValuation{
-			AssetID:     holding.AssetID,
-			AssetSymbol: holding.AssetSymbol,
-			AssetName:   holding.AssetName,
-			AssetClass:  holding.AssetClass,
-			Quantity:    holding.Quantity,
-			Price:       price.Price,
-			Currency:    price.Currency,
-			MarketValue: marketValue,
-			PricedAt:    price.PricedAt,
+			AssetID:      holding.AssetID,
+			AssetSymbol:  holding.AssetSymbol,
+			AssetName:    holding.AssetName,
+			AssetClass:   holding.AssetClass,
+			RiskCategory: holding.RiskCategory,
+			Quantity:     holding.Quantity,
+			Price:        price.Price,
+			Currency:     price.Currency,
+			MarketValue:  marketValue,
+			PricedAt:     price.PricedAt,
 		})
 		totals[price.Currency] = totals[price.Currency].Add(marketValue)
 	}

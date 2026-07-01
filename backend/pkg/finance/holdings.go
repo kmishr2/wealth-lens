@@ -18,14 +18,15 @@ const (
 )
 
 type LedgerEntry struct {
-	EntryKind   LedgerEntryKind
-	AssetID     string
-	AssetSymbol string
-	AssetName   string
-	AssetClass  string
-	Quantity    *decimal.Decimal
-	Amount      *decimal.Decimal
-	Currency    string
+	EntryKind    LedgerEntryKind
+	AssetID      string
+	AssetSymbol  string
+	AssetName    string
+	AssetClass   string
+	RiskCategory string
+	Quantity     *decimal.Decimal
+	Amount       *decimal.Decimal
+	Currency     string
 }
 
 type HoldingsResult struct {
@@ -35,12 +36,13 @@ type HoldingsResult struct {
 }
 
 type AssetHolding struct {
-	AssetID     string          `json:"asset_id"`
-	AssetSymbol string          `json:"asset_symbol"`
-	AssetName   string          `json:"asset_name"`
-	AssetClass  string          `json:"asset_class"`
-	Quantity    decimal.Decimal `json:"quantity"`
-	Currency    string          `json:"currency"`
+	AssetID      string          `json:"asset_id"`
+	AssetSymbol  string          `json:"asset_symbol"`
+	AssetName    string          `json:"asset_name"`
+	AssetClass   string          `json:"asset_class"`
+	RiskCategory string          `json:"risk_category"`
+	Quantity     decimal.Decimal `json:"quantity"`
+	Currency     string          `json:"currency"`
 }
 
 type CashBalance struct {
@@ -135,12 +137,13 @@ func addAssetEntry(assetTotals map[string]AssetHolding, index int, entry LedgerE
 	}
 
 	next := AssetHolding{
-		AssetID:     assetID,
-		AssetSymbol: strings.ToUpper(strings.TrimSpace(entry.AssetSymbol)),
-		AssetName:   strings.TrimSpace(entry.AssetName),
-		AssetClass:  strings.ToLower(strings.TrimSpace(entry.AssetClass)),
-		Quantity:    *entry.Quantity,
-		Currency:    currency,
+		AssetID:      assetID,
+		AssetSymbol:  strings.ToUpper(strings.TrimSpace(entry.AssetSymbol)),
+		AssetName:    strings.TrimSpace(entry.AssetName),
+		AssetClass:   strings.ToLower(strings.TrimSpace(entry.AssetClass)),
+		RiskCategory: strings.ToLower(strings.TrimSpace(entry.RiskCategory)),
+		Quantity:     *entry.Quantity,
+		Currency:     currency,
 	}
 
 	existing, ok := assetTotals[assetID]
@@ -148,7 +151,7 @@ func addAssetEntry(assetTotals map[string]AssetHolding, index int, entry LedgerE
 		assetTotals[assetID] = next
 		return nil
 	}
-	if existing.AssetSymbol != next.AssetSymbol || existing.AssetName != next.AssetName || existing.AssetClass != next.AssetClass || existing.Currency != next.Currency {
+	if existing.AssetSymbol != next.AssetSymbol || existing.AssetName != next.AssetName || existing.AssetClass != next.AssetClass || existing.RiskCategory != next.RiskCategory || existing.Currency != next.Currency {
 		return fmt.Errorf("asset entry %d has inconsistent metadata for asset_id %s", index, assetID)
 	}
 

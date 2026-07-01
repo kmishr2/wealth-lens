@@ -19,13 +19,14 @@ type AllocationResult struct {
 }
 
 type AssetAllocation struct {
-	AssetID     string          `json:"asset_id"`
-	AssetSymbol string          `json:"asset_symbol"`
-	AssetName   string          `json:"asset_name"`
-	AssetClass  string          `json:"asset_class"`
-	Currency    string          `json:"currency"`
-	MarketValue decimal.Decimal `json:"market_value"`
-	Percentage  decimal.Decimal `json:"percentage"`
+	AssetID      string          `json:"asset_id"`
+	AssetSymbol  string          `json:"asset_symbol"`
+	AssetName    string          `json:"asset_name"`
+	AssetClass   string          `json:"asset_class"`
+	RiskCategory string          `json:"risk_category"`
+	Currency     string          `json:"currency"`
+	MarketValue  decimal.Decimal `json:"market_value"`
+	Percentage   decimal.Decimal `json:"percentage"`
 }
 
 type AssetClassAllocation struct {
@@ -80,13 +81,14 @@ func CalculateAllocation(valuation PortfolioValuationResult) (AllocationResult, 
 		}
 
 		assetAllocations = append(assetAllocations, AssetAllocation{
-			AssetID:     asset.AssetID,
-			AssetSymbol: asset.AssetSymbol,
-			AssetName:   asset.AssetName,
-			AssetClass:  asset.AssetClass,
-			Currency:    asset.Currency,
-			MarketValue: asset.MarketValue,
-			Percentage:  percentage(asset.MarketValue, total),
+			AssetID:      asset.AssetID,
+			AssetSymbol:  asset.AssetSymbol,
+			AssetName:    asset.AssetName,
+			AssetClass:   asset.AssetClass,
+			RiskCategory: asset.RiskCategory,
+			Currency:     asset.Currency,
+			MarketValue:  asset.MarketValue,
+			Percentage:   percentage(asset.MarketValue, total),
 		})
 		addClassTotal(assetClassTotals, asset.AssetClass, asset.Currency, asset.MarketValue)
 	}

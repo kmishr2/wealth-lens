@@ -32,6 +32,10 @@ func (s *Service) Create(req AssetCreateRequest) (AssetResponse, error) {
 	if !common.OneOf(assetClass, AssetClassCash, AssetClassEquity, AssetClassFund, AssetClassBond, AssetClassCrypto, AssetClassRealEstate, AssetClassCommodity, AssetClassAlternative, AssetClassOther) {
 		return AssetResponse{}, common.BadRequest("Invalid asset class")
 	}
+	riskCategory, err := normalizeRiskCategory(req.RiskCategory, assetClass)
+	if err != nil {
+		return AssetResponse{}, err
+	}
 
 	currency := common.NormalizeCurrency(req.Currency)
 	if !common.ValidateCurrency(currency) {
@@ -39,12 +43,13 @@ func (s *Service) Create(req AssetCreateRequest) (AssetResponse, error) {
 	}
 
 	asset := &Asset{
-		Symbol:     symbol,
-		Name:       name,
-		AssetClass: assetClass,
-		Currency:   currency,
-		Exchange:   strings.ToUpper(strings.TrimSpace(req.Exchange)),
-		IsActive:   true,
+		Symbol:       symbol,
+		Name:         name,
+		AssetClass:   assetClass,
+		RiskCategory: riskCategory,
+		Currency:     currency,
+		Exchange:     strings.ToUpper(strings.TrimSpace(req.Exchange)),
+		IsActive:     true,
 	}
 
 	if err := s.repo.Create(asset); err != nil {
@@ -55,6 +60,25 @@ func (s *Service) Create(req AssetCreateRequest) (AssetResponse, error) {
 	}
 
 	return ToResponse(*asset), nil
+}
+
+func normalizeRiskCategory(raw *string, assetClass string) (*string, error) {
+	if raw != nil && strings.TrimSpace(*raw) != "" {
+		value := strings.ToLower(strings.TrimSpace(*raw))
+		if !common.OneOf(value, RiskCategoryEquity, RiskCategoryDebt, RiskCategoryCashOther) {
+			return nil, common.BadRequest("Risk category must be equity, debt, or cash_other")
+		}
+		return &value, nil
+	}
+	defaults := map[string]string{
+		AssetClassEquity: RiskCategoryEquity,
+		AssetClassBond:   RiskCategoryDebt,
+		AssetClassCash:   RiskCategoryCashOther,
+	}
+	if value, ok := defaults[assetClass]; ok {
+		return &value, nil
+	}
+	return nil, nil
 }
 
 func (s *Service) List(pagination common.Pagination) ([]AssetResponse, error) {

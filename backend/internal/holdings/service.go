@@ -63,14 +63,15 @@ func ToFinanceEntries(records []LedgerEntryRecord) []finance.LedgerEntry {
 	entries := make([]finance.LedgerEntry, 0, len(records))
 	for _, record := range records {
 		entries = append(entries, finance.LedgerEntry{
-			EntryKind:   finance.LedgerEntryKind(record.EntryKind),
-			AssetID:     record.AssetID,
-			AssetSymbol: record.AssetSymbol,
-			AssetName:   record.AssetName,
-			AssetClass:  record.AssetClass,
-			Quantity:    record.Quantity,
-			Amount:      record.Amount,
-			Currency:    record.Currency,
+			EntryKind:    finance.LedgerEntryKind(record.EntryKind),
+			AssetID:      record.AssetID,
+			AssetSymbol:  record.AssetSymbol,
+			AssetName:    record.AssetName,
+			AssetClass:   record.AssetClass,
+			RiskCategory: record.RiskCategory,
+			Quantity:     record.Quantity,
+			Amount:       record.Amount,
+			Currency:     record.Currency,
 		})
 	}
 	return entries

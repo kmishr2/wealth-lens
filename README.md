@@ -267,3 +267,29 @@ concentration separately per currency from current ledger-derived holdings and
 explicit market prices. It reports HHI, effective asset count, and the largest
 asset percentage. Cash, currency conversion, subjective labels, and advisory
 thresholds are excluded. A complete valuation is required.
+
+## Portfolio Health Score
+
+The health score is calculated separately per currency from five disclosed
+components: diversification (25), allocation drift (25), volatility (20),
+maximum drawdown (15), and data quality (15). It uses current ledger-derived
+allocation plus the trailing 12 months of immutable daily snapshots, annualized
+at 252 periods per year. The default risk profile is `moderate`.
+
+```bash
+curl -X POST "$API_URL/api/v1/portfolios/<portfolio-id>/health-score" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"as_of_date":"2026-06-30","risk_profile":"moderate"}'
+```
+
+Available defaults are conservative (30/60/10 allocation, 8% volatility,
+-10% drawdown), moderate (60/35/5, 15%, -20%), and aggressive (85/10/5,
+25%, -35%). Allocation values represent equity/debt/cash-other percentages.
+Per-currency custom targets and risk thresholds can be supplied in
+`currency_configurations`; all three targets must be present and sum to 100.
+
+Assets now expose an optional `risk_category`: `equity`, `debt`, or
+`cash_other`. Equity, bond, and cash asset classes receive deterministic
+defaults. Funds and other ambiguous asset classes must be classified explicitly
+or receive the partial-data-quality score.

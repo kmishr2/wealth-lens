@@ -9,14 +9,15 @@ import (
 )
 
 type LedgerEntryRecord struct {
-	EntryKind   string           `gorm:"column:entry_kind"`
-	AssetID     string           `gorm:"column:asset_id"`
-	AssetSymbol string           `gorm:"column:asset_symbol"`
-	AssetName   string           `gorm:"column:asset_name"`
-	AssetClass  string           `gorm:"column:asset_class"`
-	Quantity    *decimal.Decimal `gorm:"column:quantity"`
-	Amount      *decimal.Decimal `gorm:"column:amount"`
-	Currency    string           `gorm:"column:currency"`
+	EntryKind    string           `gorm:"column:entry_kind"`
+	AssetID      string           `gorm:"column:asset_id"`
+	AssetSymbol  string           `gorm:"column:asset_symbol"`
+	AssetName    string           `gorm:"column:asset_name"`
+	AssetClass   string           `gorm:"column:asset_class"`
+	RiskCategory string           `gorm:"column:risk_category"`
+	Quantity     *decimal.Decimal `gorm:"column:quantity"`
+	Amount       *decimal.Decimal `gorm:"column:amount"`
+	Currency     string           `gorm:"column:currency"`
 }
 
 type Repository struct {
@@ -36,6 +37,7 @@ func (r *Repository) ListLedgerEntries(portfolioID uuid.UUID) ([]LedgerEntryReco
 			COALESCE(a.symbol, '') AS asset_symbol,
 			COALESCE(a.name, '') AS asset_name,
 			COALESCE(a.asset_class, '') AS asset_class,
+			COALESCE(a.risk_category, '') AS risk_category,
 			te.quantity,
 			te.amount,
 			te.currency
@@ -57,6 +59,7 @@ func (r *Repository) ListLedgerEntriesAsOf(portfolioID uuid.UUID, asOf time.Time
 			COALESCE(a.symbol, '') AS asset_symbol,
 			COALESCE(a.name, '') AS asset_name,
 			COALESCE(a.asset_class, '') AS asset_class,
+			COALESCE(a.risk_category, '') AS risk_category,
 			te.quantity,
 			te.amount,
 			te.currency
