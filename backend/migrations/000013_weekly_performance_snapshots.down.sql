@@ -1,0 +1,3 @@
+DROP TRIGGER IF EXISTS trg_weekly_performance_snapshots_immutable ON weekly_performance_snapshots;
+DROP FUNCTION IF EXISTS prevent_weekly_performance_snapshot_mutation();
+DROP TABLE IF EXISTS weekly_performance_snapshots;

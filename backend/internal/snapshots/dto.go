@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kaustubhmishra/wealth-lens/backend/pkg/finance"
+	"github.com/shopspring/decimal"
 )
 
 const snapshotDateLayout = "2006-01-02"
@@ -32,6 +33,31 @@ type PortfolioSnapshotResponse struct {
 	HoldingsMetadata      finance.MetricDefinition       `json:"holdings_metadata"`
 	CreatedByUserID       uuid.UUID                      `json:"created_by_user_id"`
 	CreatedAt             time.Time                      `json:"created_at"`
+}
+
+type WeeklyPerformanceSnapshotResponse struct {
+	ID               uuid.UUID                   `json:"id"`
+	PortfolioID      uuid.UUID                   `json:"portfolio_id"`
+	WeekStartDate    string                      `json:"week_start_date"`
+	WeekEndDate      string                      `json:"week_end_date"`
+	CurrencyReturns  []WeeklyCurrencyPerformance `json:"currency_returns"`
+	PerformanceScope string                      `json:"performance_scope"`
+	PnLMetadata      finance.MetricDefinition    `json:"pnl_metadata"`
+	CAGRMetadata     finance.MetricDefinition    `json:"cagr_metadata"`
+	XIRRMetadata     finance.MetricDefinition    `json:"xirr_metadata"`
+	CreatedByUserID  uuid.UUID                   `json:"created_by_user_id"`
+	CreatedAt        time.Time                   `json:"created_at"`
+}
+
+type WeeklyCurrencyPerformance struct {
+	Currency            string          `json:"currency"`
+	BeginningValue      decimal.Decimal `json:"beginning_value"`
+	EndingValue         decimal.Decimal `json:"ending_value"`
+	NetExternalCashFlow decimal.Decimal `json:"net_external_cash_flow"`
+	ProfitLoss          decimal.Decimal `json:"profit_loss"`
+	CAGR                decimal.Decimal `json:"cagr"`
+	XIRR                decimal.Decimal `json:"xirr"`
+	CashFlowCount       int             `json:"cash_flow_count"`
 }
 
 func ToResponse(snapshot PortfolioSnapshot) (PortfolioSnapshotResponse, error) {
@@ -100,6 +126,40 @@ func ToResponses(snapshots []PortfolioSnapshot) ([]PortfolioSnapshotResponse, er
 		responses = append(responses, response)
 	}
 	return responses, nil
+}
+
+func ToWeeklyPerformanceResponse(snapshot WeeklyPerformanceSnapshot) (WeeklyPerformanceSnapshotResponse, error) {
+	var currencyReturns []WeeklyCurrencyPerformance
+	var pnlMetadata finance.MetricDefinition
+	var cagrMetadata finance.MetricDefinition
+	var xirrMetadata finance.MetricDefinition
+
+	if err := decodeJSONB(snapshot.CurrencyReturns, &currencyReturns); err != nil {
+		return WeeklyPerformanceSnapshotResponse{}, err
+	}
+	if err := decodeJSONB(snapshot.PnLMetadata, &pnlMetadata); err != nil {
+		return WeeklyPerformanceSnapshotResponse{}, err
+	}
+	if err := decodeJSONB(snapshot.CAGRMetadata, &cagrMetadata); err != nil {
+		return WeeklyPerformanceSnapshotResponse{}, err
+	}
+	if err := decodeJSONB(snapshot.XIRRMetadata, &xirrMetadata); err != nil {
+		return WeeklyPerformanceSnapshotResponse{}, err
+	}
+
+	return WeeklyPerformanceSnapshotResponse{
+		ID:               snapshot.ID,
+		PortfolioID:      snapshot.PortfolioID,
+		WeekStartDate:    snapshot.WeekStartDate.UTC().Format(snapshotDateLayout),
+		WeekEndDate:      snapshot.WeekEndDate.UTC().Format(snapshotDateLayout),
+		CurrencyReturns:  currencyReturns,
+		PerformanceScope: snapshot.PerformanceScope,
+		PnLMetadata:      pnlMetadata,
+		CAGRMetadata:     cagrMetadata,
+		XIRRMetadata:     xirrMetadata,
+		CreatedByUserID:  snapshot.CreatedByUserID,
+		CreatedAt:        snapshot.CreatedAt,
+	}, nil
 }
 
 func decodeJSONB(raw JSONB, target any) error {

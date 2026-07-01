@@ -11,6 +11,7 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/holdings"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/portfolios"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/prices"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/transactions"
 	"github.com/kaustubhmishra/wealth-lens/backend/pkg/finance"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -28,6 +29,11 @@ type fakeSnapshotRepo struct {
 	createCalls int
 	createErr   error
 
+	weeklyExisting    *WeeklyPerformanceSnapshot
+	weeklyCreated     *WeeklyPerformanceSnapshot
+	weeklyCreateCalls int
+	weeklyCreateErr   error
+
 	listPortfolioID uuid.UUID
 	listPagination  common.Pagination
 	listSnapshots   []PortfolioSnapshot
@@ -38,6 +44,12 @@ func (f *fakeSnapshotRepo) Create(snapshot *PortfolioSnapshot) error {
 	f.createCalls++
 	f.created = snapshot
 	return f.createErr
+}
+
+func (f *fakeSnapshotRepo) CreateWeeklyPerformance(snapshot *WeeklyPerformanceSnapshot) error {
+	f.weeklyCreateCalls++
+	f.weeklyCreated = snapshot
+	return f.weeklyCreateErr
 }
 
 func (f *fakeSnapshotRepo) GetByPortfolioDatePeriod(portfolioID uuid.UUID, snapshotDate time.Time, snapshotPeriod string) (*PortfolioSnapshot, error) {
@@ -54,10 +66,34 @@ func (f *fakeSnapshotRepo) GetByPortfolioDatePeriod(portfolioID uuid.UUID, snaps
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (f *fakeSnapshotRepo) GetWeeklyPerformanceByPortfolioWeekEnd(uuid.UUID, time.Time) (*WeeklyPerformanceSnapshot, error) {
+	if f.weeklyExisting != nil {
+		return f.weeklyExisting, nil
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
 func (f *fakeSnapshotRepo) ListByPortfolio(portfolioID uuid.UUID, pagination common.Pagination) ([]PortfolioSnapshot, error) {
 	f.listPortfolioID = portfolioID
 	f.listPagination = pagination
 	return f.listSnapshots, f.listErr
+}
+
+type fakeSnapshotSequenceRepo struct {
+	fakeSnapshotRepo
+	snapshots map[string]PortfolioSnapshot
+}
+
+func (f *fakeSnapshotSequenceRepo) GetByPortfolioDatePeriod(portfolioID uuid.UUID, snapshotDate time.Time, snapshotPeriod string) (*PortfolioSnapshot, error) {
+	f.getCalls++
+	f.getPortfolioID = portfolioID
+	f.getDate = snapshotDate
+	f.getPeriod = snapshotPeriod
+	snapshot, ok := f.snapshots[snapshotDate.UTC().Format(snapshotDateLayout)]
+	if !ok {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &snapshot, nil
 }
 
 type fakeLedgerAsOfReader struct {
@@ -101,6 +137,21 @@ func (f *fakePortfolioReader) GetOwned(userID uuid.UUID, portfolioID uuid.UUID) 
 	f.userID = userID
 	f.portfolioID = portfolioID
 	return f.portfolio, f.err
+}
+
+type fakeSnapshotCashFlowReader struct {
+	portfolioID uuid.UUID
+	startAfter  time.Time
+	endAt       time.Time
+	records     []transactions.ExternalCashFlowRecord
+	err         error
+}
+
+func (f *fakeSnapshotCashFlowReader) ListExternalCashFlows(portfolioID uuid.UUID, startAfter time.Time, endAt time.Time) ([]transactions.ExternalCashFlowRecord, error) {
+	f.portfolioID = portfolioID
+	f.startAfter = startAfter
+	f.endAt = endAt
+	return f.records, f.err
 }
 
 func TestCreateDailyBuildsSnapshotFromAsOfLedgerAndPrices(t *testing.T) {
@@ -259,6 +310,118 @@ func TestCreateDailyPersistsMissingPricesAsIncompleteSnapshot(t *testing.T) {
 	}
 }
 
+func TestCreateWeeklyPerformanceBuildsSnapshotFromDailySnapshotsAndCashFlows(t *testing.T) {
+	userID := uuid.New()
+	portfolioID := uuid.New()
+	weekStart := time.Date(2026, 1, 4, 0, 0, 0, 0, time.UTC)
+	weekEnd := time.Date(2026, 1, 11, 0, 0, 0, 0, time.UTC)
+	snapshotRepo := &fakeSnapshotSequenceRepo{
+		snapshots: map[string]PortfolioSnapshot{
+			"2026-01-04": storedSnapshot(t, userID, portfolioID, weekStart, decimal.RequireFromString("1000"), true, nil),
+			"2026-01-11": storedSnapshot(t, userID, portfolioID, weekEnd, decimal.RequireFromString("1150"), true, nil),
+		},
+	}
+	cashFlowReader := &fakeSnapshotCashFlowReader{
+		records: []transactions.ExternalCashFlowRecord{
+			{
+				OccurredAt: time.Date(2026, 1, 7, 10, 0, 0, 0, time.UTC),
+				Currency:   "USD",
+				Amount:     decimal.RequireFromString("50"),
+			},
+		},
+	}
+	service := NewServiceWithCashFlows(
+		snapshotRepo,
+		&fakeLedgerAsOfReader{},
+		&fakeLatestPriceAsOfReader{},
+		&fakePortfolioReader{portfolio: &portfolios.Portfolio{ID: portfolioID, UserID: userID}},
+		cashFlowReader,
+	)
+
+	response, err := service.CreateWeeklyPerformance(userID, portfolioID, SnapshotCreateRequest{SnapshotDate: "2026-01-11"})
+	if err != nil {
+		t.Fatalf("CreateWeeklyPerformance returned error: %v", err)
+	}
+
+	if snapshotRepo.weeklyCreateCalls != 1 || snapshotRepo.weeklyCreated == nil {
+		t.Fatalf("weekly create calls = %d created = %v", snapshotRepo.weeklyCreateCalls, snapshotRepo.weeklyCreated)
+	}
+	if response.WeekStartDate != "2026-01-04" || response.WeekEndDate != "2026-01-11" {
+		t.Fatalf("week range = %s..%s, want 2026-01-04..2026-01-11", response.WeekStartDate, response.WeekEndDate)
+	}
+	expectedStartAfter := time.Date(2026, 1, 4, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC)
+	expectedEndAt := time.Date(2026, 1, 11, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC)
+	if !cashFlowReader.startAfter.Equal(expectedStartAfter) || !cashFlowReader.endAt.Equal(expectedEndAt) {
+		t.Fatalf("cash flow range = %s..%s, want %s..%s", cashFlowReader.startAfter, cashFlowReader.endAt, expectedStartAfter, expectedEndAt)
+	}
+	if len(response.CurrencyReturns) != 1 {
+		t.Fatalf("currency returns = %+v, want one currency", response.CurrencyReturns)
+	}
+	result := response.CurrencyReturns[0]
+	if result.Currency != "USD" {
+		t.Fatalf("currency = %s, want USD", result.Currency)
+	}
+	if !result.NetExternalCashFlow.Equal(decimal.RequireFromString("50")) {
+		t.Fatalf("net external cash flow = %s, want 50", result.NetExternalCashFlow)
+	}
+	if !result.ProfitLoss.Equal(decimal.RequireFromString("100")) {
+		t.Fatalf("profit loss = %s, want 100", result.ProfitLoss)
+	}
+	if result.CashFlowCount != 1 {
+		t.Fatalf("cash flow count = %d, want 1", result.CashFlowCount)
+	}
+	if response.PerformanceScope == "" || response.PnLMetadata.Name == "" || response.CAGRMetadata.Name == "" || response.XIRRMetadata.Name == "" {
+		t.Fatalf("metadata is incomplete: %+v", response)
+	}
+}
+
+func TestCreateWeeklyPerformanceReturnsExistingSnapshotIdempotently(t *testing.T) {
+	userID := uuid.New()
+	portfolioID := uuid.New()
+	existing := storedWeeklyPerformanceSnapshot(t, userID, portfolioID, "2026-01-04", "2026-01-11")
+	snapshotRepo := &fakeSnapshotRepo{weeklyExisting: &existing}
+	service := NewServiceWithCashFlows(
+		snapshotRepo,
+		&fakeLedgerAsOfReader{},
+		&fakeLatestPriceAsOfReader{},
+		&fakePortfolioReader{portfolio: &portfolios.Portfolio{ID: portfolioID, UserID: userID}},
+		&fakeSnapshotCashFlowReader{},
+	)
+
+	response, err := service.CreateWeeklyPerformance(userID, portfolioID, SnapshotCreateRequest{SnapshotDate: "2026-01-11"})
+	if err != nil {
+		t.Fatalf("CreateWeeklyPerformance returned error: %v", err)
+	}
+
+	if response.ID != existing.ID {
+		t.Fatalf("response id = %s, want existing id %s", response.ID, existing.ID)
+	}
+	if snapshotRepo.weeklyCreateCalls != 0 {
+		t.Fatalf("weekly create calls = %d, want 0", snapshotRepo.weeklyCreateCalls)
+	}
+}
+
+func TestCreateWeeklyPerformanceRejectsNonSundayWeekEnd(t *testing.T) {
+	userID := uuid.New()
+	portfolioID := uuid.New()
+	service := NewServiceWithCashFlows(
+		&fakeSnapshotRepo{},
+		&fakeLedgerAsOfReader{},
+		&fakeLatestPriceAsOfReader{},
+		&fakePortfolioReader{portfolio: &portfolios.Portfolio{ID: portfolioID, UserID: userID}},
+		&fakeSnapshotCashFlowReader{},
+	)
+
+	_, err := service.CreateWeeklyPerformance(userID, portfolioID, SnapshotCreateRequest{SnapshotDate: "2026-01-10"})
+	if err == nil {
+		t.Fatal("CreateWeeklyPerformance returned nil error")
+	}
+	var appErr *common.AppError
+	if !errors.As(err, &appErr) || appErr.Message != "Weekly performance snapshot date must be a UTC Sunday" {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestCreateDailyRejectsSnapshotWithoutTotalValue(t *testing.T) {
 	userID := uuid.New()
 	portfolioID := uuid.New()
@@ -390,4 +553,56 @@ func storedSnapshot(t *testing.T, userID uuid.UUID, portfolioID uuid.UUID, snaps
 		CreatedByUserID:       userID,
 		CreatedAt:             time.Now().UTC(),
 	}
+}
+
+func storedWeeklyPerformanceSnapshot(t *testing.T, userID uuid.UUID, portfolioID uuid.UUID, weekStartDate string, weekEndDate string) WeeklyPerformanceSnapshot {
+	t.Helper()
+
+	currencyReturns, err := NewJSONB([]WeeklyCurrencyPerformance{
+		{
+			Currency:       "USD",
+			BeginningValue: decimal.RequireFromString("1000"),
+			EndingValue:    decimal.RequireFromString("1100"),
+			ProfitLoss:     decimal.RequireFromString("100"),
+			CAGR:           decimal.RequireFromString("10"),
+			XIRR:           decimal.RequireFromString("10"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("currency returns JSON: %v", err)
+	}
+	pnlMetadata, err := NewJSONB(finance.PeriodPnLDefinition())
+	if err != nil {
+		t.Fatalf("pnl metadata JSON: %v", err)
+	}
+	cagrMetadata, err := NewJSONB(finance.CAGRDefinition())
+	if err != nil {
+		t.Fatalf("cagr metadata JSON: %v", err)
+	}
+	xirrMetadata, err := NewJSONB(finance.XIRRDefinition())
+	if err != nil {
+		t.Fatalf("xirr metadata JSON: %v", err)
+	}
+
+	return WeeklyPerformanceSnapshot{
+		ID:               uuid.New(),
+		PortfolioID:      portfolioID,
+		WeekStartDate:    mustSnapshotDate(weekStartDate),
+		WeekEndDate:      mustSnapshotDate(weekEndDate),
+		CurrencyReturns:  currencyReturns,
+		PerformanceScope: "test",
+		PnLMetadata:      pnlMetadata,
+		CAGRMetadata:     cagrMetadata,
+		XIRRMetadata:     xirrMetadata,
+		CreatedByUserID:  userID,
+		CreatedAt:        time.Now().UTC(),
+	}
+}
+
+func mustSnapshotDate(date string) time.Time {
+	parsed, err := time.Parse(snapshotDateLayout, date)
+	if err != nil {
+		panic(err)
+	}
+	return parsed
 }

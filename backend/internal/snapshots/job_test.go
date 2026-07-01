@@ -55,6 +55,19 @@ func (f *fakeDailySnapshotCreator) CreateDaily(userID uuid.UUID, portfolioID uui
 	return PortfolioSnapshotResponse{PortfolioID: portfolioID, SnapshotDate: req.SnapshotDate}, nil
 }
 
+type fakeWeeklyPerformanceSnapshotCreator struct {
+	calls  []snapshotCreateCall
+	errors map[uuid.UUID]error
+}
+
+func (f *fakeWeeklyPerformanceSnapshotCreator) CreateWeeklyPerformance(userID uuid.UUID, portfolioID uuid.UUID, req SnapshotCreateRequest) (WeeklyPerformanceSnapshotResponse, error) {
+	f.calls = append(f.calls, snapshotCreateCall{userID: userID, portfolioID: portfolioID, date: req.SnapshotDate})
+	if err := f.errors[portfolioID]; err != nil {
+		return WeeklyPerformanceSnapshotResponse{}, err
+	}
+	return WeeklyPerformanceSnapshotResponse{PortfolioID: portfolioID, WeekEndDate: req.SnapshotDate}, nil
+}
+
 func TestDailyJobProcessesActivePortfoliosInBatches(t *testing.T) {
 	first := portfolios.Portfolio{ID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), UserID: uuid.New()}
 	second := portfolios.Portfolio{ID: uuid.MustParse("00000000-0000-0000-0000-000000000002"), UserID: uuid.New()}
@@ -131,6 +144,44 @@ func TestDailyJobRejectsInvalidDateBeforeListingPortfolios(t *testing.T) {
 	_, err := NewDailyJob(lister, creator, 0).Run("not-a-date")
 	if err == nil {
 		t.Fatal("Run returned nil error")
+	}
+	if lister.calls != 0 || len(creator.calls) != 0 {
+		t.Fatalf("lister calls = %d creator calls = %d, want no work", lister.calls, len(creator.calls))
+	}
+}
+
+func TestWeeklyPerformanceJobProcessesActivePortfolios(t *testing.T) {
+	first := portfolios.Portfolio{ID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), UserID: uuid.New()}
+	second := portfolios.Portfolio{ID: uuid.MustParse("00000000-0000-0000-0000-000000000002"), UserID: uuid.New()}
+	lister := &fakeActivePortfolioLister{batches: [][]portfolios.Portfolio{{first, second}}}
+	creator := &fakeWeeklyPerformanceSnapshotCreator{errors: map[uuid.UUID]error{}}
+
+	result, err := NewWeeklyPerformanceJob(lister, creator, 10).Run("2026-01-11")
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if result.Processed != 2 || result.Succeeded != 2 || result.Failed != 0 {
+		t.Fatalf("result = %+v, want processed=2 succeeded=2 failed=0", result)
+	}
+	if len(creator.calls) != 2 {
+		t.Fatalf("create calls = %d, want 2", len(creator.calls))
+	}
+	for index, call := range creator.calls {
+		portfolio := []portfolios.Portfolio{first, second}[index]
+		if call.userID != portfolio.UserID || call.portfolioID != portfolio.ID || call.date != "2026-01-11" {
+			t.Fatalf("call %d = %+v, want owner=%s portfolio=%s date=2026-01-11", index, call, portfolio.UserID, portfolio.ID)
+		}
+	}
+}
+
+func TestWeeklyPerformanceJobRejectsNonSundayBeforeListingPortfolios(t *testing.T) {
+	lister := &fakeActivePortfolioLister{}
+	creator := &fakeWeeklyPerformanceSnapshotCreator{errors: map[uuid.UUID]error{}}
+
+	_, err := NewWeeklyPerformanceJob(lister, creator, 0).Run("2026-01-10")
+	if err == nil || err.Error() != "weekly performance snapshot date must be a UTC Sunday" {
+		t.Fatalf("error = %v, want non-Sunday error", err)
 	}
 	if lister.calls != 0 || len(creator.calls) != 0 {
 		t.Fatalf("lister calls = %d creator calls = %d, want no work", lister.calls, len(creator.calls))

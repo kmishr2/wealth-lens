@@ -11,6 +11,7 @@ import (
 )
 
 const SnapshotPeriodDaily = "daily"
+const SnapshotPeriodWeekly = "weekly"
 
 type JSONB []byte
 
@@ -67,6 +68,27 @@ type PortfolioSnapshot struct {
 }
 
 func (s *PortfolioSnapshot) BeforeCreate(*gorm.DB) error {
+	if s.ID == uuid.Nil {
+		s.ID = uuid.New()
+	}
+	return nil
+}
+
+type WeeklyPerformanceSnapshot struct {
+	ID               uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	PortfolioID      uuid.UUID `gorm:"type:uuid;not null;index"`
+	WeekStartDate    time.Time `gorm:"type:date;not null;index"`
+	WeekEndDate      time.Time `gorm:"type:date;not null;index"`
+	CurrencyReturns  JSONB     `gorm:"type:jsonb;not null"`
+	PerformanceScope string    `gorm:"not null"`
+	PnLMetadata      JSONB     `gorm:"type:jsonb;not null"`
+	CAGRMetadata     JSONB     `gorm:"type:jsonb;not null"`
+	XIRRMetadata     JSONB     `gorm:"type:jsonb;not null"`
+	CreatedByUserID  uuid.UUID `gorm:"type:uuid;not null;index"`
+	CreatedAt        time.Time `gorm:"not null"`
+}
+
+func (s *WeeklyPerformanceSnapshot) BeforeCreate(*gorm.DB) error {
 	if s.ID == uuid.Nil {
 		s.ID = uuid.New()
 	}

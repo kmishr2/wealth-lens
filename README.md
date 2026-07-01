@@ -143,6 +143,24 @@ Run it from cron or an external scheduler after all prices for the UTC day have
 been recorded. Use the same command with a historical date for manual
 backfills.
 
+## Weekly Performance Snapshots
+
+Create immutable weekly performance snapshots for every active portfolio by
+passing the UTC Sunday week-ending date. The job compares the daily snapshot
+from seven days earlier with the Sunday daily snapshot, includes external
+deposit/withdrawal cash flows during the week, and stores deterministic PnL,
+CAGR, and XIRR values per currency.
+
+```bash
+make snapshot-weekly DATE=2026-01-11
+```
+
+The command is idempotent: an existing weekly performance snapshot for the
+same portfolio and week-ending date is returned rather than duplicated. Run it
+after the Sunday daily portfolio snapshot has been created. Missing boundary
+daily snapshots are reported per portfolio without stopping the remaining
+portfolios.
+
 ## Nightly Indian Market Prices
 
 The price job uses AMFI's public official daily NAV feed for Indian mutual

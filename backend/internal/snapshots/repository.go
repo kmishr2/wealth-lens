@@ -20,10 +20,22 @@ func (r *Repository) Create(snapshot *PortfolioSnapshot) error {
 	return r.db.Create(snapshot).Error
 }
 
+func (r *Repository) CreateWeeklyPerformance(snapshot *WeeklyPerformanceSnapshot) error {
+	return r.db.Create(snapshot).Error
+}
+
 func (r *Repository) GetByPortfolioDatePeriod(portfolioID uuid.UUID, snapshotDate time.Time, snapshotPeriod string) (*PortfolioSnapshot, error) {
 	var snapshot PortfolioSnapshot
 	err := r.db.
 		Where("portfolio_id = ? AND snapshot_date = ? AND snapshot_period = ?", portfolioID, snapshotDate, snapshotPeriod).
+		First(&snapshot).Error
+	return &snapshot, err
+}
+
+func (r *Repository) GetWeeklyPerformanceByPortfolioWeekEnd(portfolioID uuid.UUID, weekEndDate time.Time) (*WeeklyPerformanceSnapshot, error) {
+	var snapshot WeeklyPerformanceSnapshot
+	err := r.db.
+		Where("portfolio_id = ? AND week_end_date = ?", portfolioID, weekEndDate).
 		First(&snapshot).Error
 	return &snapshot, err
 }

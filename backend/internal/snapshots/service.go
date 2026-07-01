@@ -2,6 +2,8 @@ package snapshots
 
 import (
 	"errors"
+	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,7 +11,9 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/holdings"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/portfolios"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/prices"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/transactions"
 	"github.com/kaustubhmishra/wealth-lens/backend/pkg/finance"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -25,9 +29,15 @@ type portfolioReader interface {
 	GetOwned(userID uuid.UUID, portfolioID uuid.UUID) (*portfolios.Portfolio, error)
 }
 
+type externalCashFlowReader interface {
+	ListExternalCashFlows(portfolioID uuid.UUID, startAfter time.Time, endAt time.Time) ([]transactions.ExternalCashFlowRecord, error)
+}
+
 type snapshotReaderWriter interface {
 	Create(snapshot *PortfolioSnapshot) error
+	CreateWeeklyPerformance(snapshot *WeeklyPerformanceSnapshot) error
 	GetByPortfolioDatePeriod(portfolioID uuid.UUID, snapshotDate time.Time, snapshotPeriod string) (*PortfolioSnapshot, error)
+	GetWeeklyPerformanceByPortfolioWeekEnd(portfolioID uuid.UUID, weekEndDate time.Time) (*WeeklyPerformanceSnapshot, error)
 	ListByPortfolio(portfolioID uuid.UUID, pagination common.Pagination) ([]PortfolioSnapshot, error)
 }
 
@@ -36,6 +46,7 @@ type Service struct {
 	ledgerRepo    ledgerEntryReader
 	priceRepo     latestPriceReader
 	portfolioRepo portfolioReader
+	cashFlowRepo  externalCashFlowReader
 }
 
 func NewService(snapshotRepo snapshotReaderWriter, ledgerRepo ledgerEntryReader, priceRepo latestPriceReader, portfolioRepo portfolioReader) *Service {
@@ -45,6 +56,12 @@ func NewService(snapshotRepo snapshotReaderWriter, ledgerRepo ledgerEntryReader,
 		priceRepo:     priceRepo,
 		portfolioRepo: portfolioRepo,
 	}
+}
+
+func NewServiceWithCashFlows(snapshotRepo snapshotReaderWriter, ledgerRepo ledgerEntryReader, priceRepo latestPriceReader, portfolioRepo portfolioReader, cashFlowRepo externalCashFlowReader) *Service {
+	service := NewService(snapshotRepo, ledgerRepo, priceRepo, portfolioRepo)
+	service.cashFlowRepo = cashFlowRepo
+	return service
 }
 
 func (s *Service) CreateDaily(userID uuid.UUID, portfolioID uuid.UUID, req SnapshotCreateRequest) (PortfolioSnapshotResponse, error) {
@@ -84,6 +101,50 @@ func (s *Service) CreateDaily(userID uuid.UUID, portfolioID uuid.UUID, req Snaps
 	return ToResponse(*snapshot)
 }
 
+func (s *Service) CreateWeeklyPerformance(userID uuid.UUID, portfolioID uuid.UUID, req SnapshotCreateRequest) (WeeklyPerformanceSnapshotResponse, error) {
+	if _, err := s.getOwnedPortfolio(userID, portfolioID); err != nil {
+		return WeeklyPerformanceSnapshotResponse{}, err
+	}
+	if s.cashFlowRepo == nil {
+		return WeeklyPerformanceSnapshotResponse{}, common.Internal("Weekly performance snapshots require a cash flow repository")
+	}
+
+	weekEndDate, err := parseSnapshotDate(req.SnapshotDate)
+	if err != nil {
+		return WeeklyPerformanceSnapshotResponse{}, err
+	}
+	if weekEndDate.Weekday() != time.Sunday {
+		return WeeklyPerformanceSnapshotResponse{}, common.BadRequest("Weekly performance snapshot date must be a UTC Sunday")
+	}
+	weekStartDate := weekEndDate.AddDate(0, 0, -7)
+
+	existing, err := s.snapshotRepo.GetWeeklyPerformanceByPortfolioWeekEnd(portfolioID, weekEndDate)
+	if err == nil {
+		return ToWeeklyPerformanceResponse(*existing)
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return WeeklyPerformanceSnapshotResponse{}, err
+	}
+
+	snapshot, err := s.buildWeeklyPerformanceSnapshot(userID, portfolioID, weekStartDate, weekEndDate)
+	if err != nil {
+		return WeeklyPerformanceSnapshotResponse{}, err
+	}
+
+	if err := s.snapshotRepo.CreateWeeklyPerformance(snapshot); err != nil {
+		if common.IsUniqueViolation(err) {
+			existing, getErr := s.snapshotRepo.GetWeeklyPerformanceByPortfolioWeekEnd(portfolioID, weekEndDate)
+			if getErr == nil {
+				return ToWeeklyPerformanceResponse(*existing)
+			}
+			return WeeklyPerformanceSnapshotResponse{}, getErr
+		}
+		return WeeklyPerformanceSnapshotResponse{}, err
+	}
+
+	return ToWeeklyPerformanceResponse(*snapshot)
+}
+
 func (s *Service) List(userID uuid.UUID, portfolioID uuid.UUID, pagination common.Pagination) ([]PortfolioSnapshotResponse, error) {
 	if _, err := s.getOwnedPortfolio(userID, portfolioID); err != nil {
 		return nil, err
@@ -94,6 +155,44 @@ func (s *Service) List(userID uuid.UUID, portfolioID uuid.UUID, pagination commo
 		return nil, err
 	}
 	return ToResponses(snapshots)
+}
+
+func (s *Service) buildWeeklyPerformanceSnapshot(userID uuid.UUID, portfolioID uuid.UUID, weekStartDate time.Time, weekEndDate time.Time) (*WeeklyPerformanceSnapshot, error) {
+	startSnapshot, err := s.getDailySnapshot(portfolioID, weekStartDate, "Week start daily snapshot not found")
+	if err != nil {
+		return nil, err
+	}
+	endSnapshot, err := s.getDailySnapshot(portfolioID, weekEndDate, "Week end daily snapshot not found")
+	if err != nil {
+		return nil, err
+	}
+
+	startResponse, err := ToResponse(*startSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	endResponse, err := ToResponse(*endSnapshot)
+	if err != nil {
+		return nil, err
+	}
+
+	cashFlows, err := s.cashFlowRepo.ListExternalCashFlows(portfolioID, endOfUTCDay(weekStartDate), endOfUTCDay(weekEndDate))
+	if err != nil {
+		return nil, err
+	}
+	currencyReturns, err := calculateWeeklyCurrencyPerformance(
+		weekStartDate,
+		weekEndDate,
+		totalsByCurrency(startResponse.TotalValues),
+		totalsByCurrency(endResponse.TotalValues),
+		externalCashFlowsByCurrency(cashFlows),
+		netExternalCashFlowsByCurrency(cashFlows),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return buildWeeklyPerformanceSnapshotModel(userID, portfolioID, weekStartDate, weekEndDate, currencyReturns)
 }
 
 func (s *Service) buildDailySnapshot(userID uuid.UUID, portfolioID uuid.UUID, snapshotDate time.Time) (*PortfolioSnapshot, error) {
@@ -127,6 +226,37 @@ func (s *Service) buildDailySnapshot(userID uuid.UUID, portfolioID uuid.UUID, sn
 	}
 
 	return buildSnapshotModel(userID, portfolioID, snapshotDate, holdingsResult, valuationResult, allocationResult)
+}
+
+func buildWeeklyPerformanceSnapshotModel(userID uuid.UUID, portfolioID uuid.UUID, weekStartDate time.Time, weekEndDate time.Time, currencyReturns []WeeklyCurrencyPerformance) (*WeeklyPerformanceSnapshot, error) {
+	currencyReturnsJSON, err := NewJSONB(currencyReturns)
+	if err != nil {
+		return nil, err
+	}
+	pnlMetadata, err := NewJSONB(finance.PeriodPnLDefinition())
+	if err != nil {
+		return nil, err
+	}
+	cagrMetadata, err := NewJSONB(finance.CAGRDefinition())
+	if err != nil {
+		return nil, err
+	}
+	xirrMetadata, err := NewJSONB(finance.XIRRDefinition())
+	if err != nil {
+		return nil, err
+	}
+
+	return &WeeklyPerformanceSnapshot{
+		PortfolioID:      portfolioID,
+		WeekStartDate:    weekStartDate,
+		WeekEndDate:      weekEndDate,
+		CurrencyReturns:  currencyReturnsJSON,
+		PerformanceScope: "Weekly performance is calculated from immutable daily snapshots at the UTC week boundary and external deposit/withdrawal cash flows within the week. Each currency is calculated separately without foreign exchange conversion.",
+		PnLMetadata:      pnlMetadata,
+		CAGRMetadata:     cagrMetadata,
+		XIRRMetadata:     xirrMetadata,
+		CreatedByUserID:  userID,
+	}, nil
 }
 
 func buildSnapshotModel(userID uuid.UUID, portfolioID uuid.UUID, snapshotDate time.Time, holdingsResult finance.HoldingsResult, valuationResult finance.PortfolioValuationResult, allocationResult finance.AllocationResult) (*PortfolioSnapshot, error) {
@@ -191,6 +321,111 @@ func (s *Service) getOwnedPortfolio(userID uuid.UUID, portfolioID uuid.UUID) (*p
 		return nil, err
 	}
 	return portfolio, nil
+}
+
+func (s *Service) getDailySnapshot(portfolioID uuid.UUID, snapshotDate time.Time, notFoundMessage string) (*PortfolioSnapshot, error) {
+	snapshot, err := s.snapshotRepo.GetByPortfolioDatePeriod(portfolioID, snapshotDate, SnapshotPeriodDaily)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, common.NotFound(notFoundMessage)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return snapshot, nil
+}
+
+func calculateWeeklyCurrencyPerformance(startDate time.Time, endDate time.Time, startTotals map[string]decimal.Decimal, endTotals map[string]decimal.Decimal, cashFlowsByCurrency map[string][]finance.CashFlow, netExternalCashFlows map[string]decimal.Decimal) ([]WeeklyCurrencyPerformance, error) {
+	currencies := make([]string, 0)
+	for currency, beginningValue := range startTotals {
+		endingValue, ok := endTotals[currency]
+		if !ok {
+			continue
+		}
+		if !beginningValue.GreaterThan(decimal.Zero) || !endingValue.GreaterThan(decimal.Zero) {
+			continue
+		}
+		currencies = append(currencies, currency)
+	}
+	sort.Strings(currencies)
+	if len(currencies) == 0 {
+		return nil, common.BadRequest("Weekly performance requires at least one currency with positive totals in both week boundary snapshots")
+	}
+
+	responses := make([]WeeklyCurrencyPerformance, 0, len(currencies))
+	for _, currency := range currencies {
+		beginningValue := startTotals[currency]
+		endingValue := endTotals[currency]
+		netExternalCashFlow := netExternalCashFlows[currency]
+
+		pnl, err := finance.CalculatePeriodPnL(finance.PeriodPnLInput{
+			BeginningValue:      beginningValue,
+			EndingValue:         endingValue,
+			NetExternalCashFlow: netExternalCashFlow,
+		})
+		if err != nil {
+			return nil, common.BadRequest(fmt.Sprintf("Weekly PnL error for currency %s: %s", currency, err.Error()))
+		}
+
+		cagr, err := finance.CalculateCAGR(finance.CAGRInput{
+			BeginningValue: beginningValue,
+			EndingValue:    endingValue,
+			StartDate:      startDate,
+			EndDate:        endDate,
+		})
+		if err != nil {
+			return nil, common.BadRequest(fmt.Sprintf("Weekly CAGR error for currency %s: %s", currency, err.Error()))
+		}
+
+		xirrFlows := make([]finance.CashFlow, 0, len(cashFlowsByCurrency[currency])+2)
+		xirrFlows = append(xirrFlows, finance.CashFlow{Date: startDate, Amount: beginningValue.Neg()})
+		xirrFlows = append(xirrFlows, cashFlowsByCurrency[currency]...)
+		xirrFlows = append(xirrFlows, finance.CashFlow{Date: endDate, Amount: endingValue})
+
+		xirr, err := finance.CalculateXIRR(xirrFlows)
+		if err != nil {
+			return nil, common.BadRequest(fmt.Sprintf("Weekly XIRR error for currency %s: %s", currency, err.Error()))
+		}
+
+		responses = append(responses, WeeklyCurrencyPerformance{
+			Currency:            currency,
+			BeginningValue:      beginningValue,
+			EndingValue:         endingValue,
+			NetExternalCashFlow: netExternalCashFlow,
+			ProfitLoss:          pnl.Amount,
+			CAGR:                cagr.Rate,
+			XIRR:                xirr.Rate,
+			CashFlowCount:       len(cashFlowsByCurrency[currency]),
+		})
+	}
+
+	return responses, nil
+}
+
+func totalsByCurrency(values []finance.CurrencyValue) map[string]decimal.Decimal {
+	totals := make(map[string]decimal.Decimal, len(values))
+	for _, value := range values {
+		totals[value.Currency] = value.Amount
+	}
+	return totals
+}
+
+func externalCashFlowsByCurrency(cashFlows []transactions.ExternalCashFlowRecord) map[string][]finance.CashFlow {
+	byCurrency := make(map[string][]finance.CashFlow)
+	for _, cashFlow := range cashFlows {
+		byCurrency[cashFlow.Currency] = append(byCurrency[cashFlow.Currency], finance.CashFlow{
+			Date:   cashFlow.OccurredAt,
+			Amount: cashFlow.Amount,
+		})
+	}
+	return byCurrency
+}
+
+func netExternalCashFlowsByCurrency(cashFlows []transactions.ExternalCashFlowRecord) map[string]decimal.Decimal {
+	netByCurrency := make(map[string]decimal.Decimal)
+	for _, cashFlow := range cashFlows {
+		netByCurrency[cashFlow.Currency] = netByCurrency[cashFlow.Currency].Add(cashFlow.Amount)
+	}
+	return netByCurrency
 }
 
 func parseSnapshotDate(raw string) (time.Time, error) {
