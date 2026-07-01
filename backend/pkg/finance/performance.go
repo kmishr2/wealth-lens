@@ -47,6 +47,25 @@ type XIRRResult struct {
 	Definition MetricDefinition `json:"definition"`
 }
 
+type BenchmarkComparisonInput struct {
+	PortfolioBeginningValue decimal.Decimal
+	PortfolioEndingValue    decimal.Decimal
+	BenchmarkBeginningValue decimal.Decimal
+	BenchmarkEndingValue    decimal.Decimal
+	StartDate               time.Time
+	EndDate                 time.Time
+}
+
+type BenchmarkComparisonResult struct {
+	PortfolioTotalReturn decimal.Decimal  `json:"portfolio_total_return"`
+	BenchmarkTotalReturn decimal.Decimal  `json:"benchmark_total_return"`
+	PortfolioCAGR        decimal.Decimal  `json:"portfolio_cagr"`
+	BenchmarkCAGR        decimal.Decimal  `json:"benchmark_cagr"`
+	ExcessTotalReturn    decimal.Decimal  `json:"excess_total_return"`
+	ExcessCAGR           decimal.Decimal  `json:"excess_cagr"`
+	Definition           MetricDefinition `json:"definition"`
+}
+
 func CAGRDefinition() MetricDefinition {
 	return MetricDefinition{
 		Name:    "Compound Annual Growth Rate",
@@ -63,6 +82,28 @@ func CAGRDefinition() MetricDefinition {
 			"end date",
 		},
 		Explanation: "CAGR converts total growth between two positive values into an annualized percentage rate. It is deterministic and does not infer deposits, withdrawals, or benchmark assumptions.",
+	}
+}
+
+func BenchmarkComparisonDefinition() MetricDefinition {
+	return MetricDefinition{
+		Name:    "Benchmark Return Comparison",
+		Formula: "Portfolio total return = ending portfolio value / beginning portfolio value - 1. Benchmark total return = ending benchmark value / beginning benchmark value - 1. Excess total return = portfolio total return - benchmark total return. CAGR values use the standard CAGR formula over the same dates.",
+		Assumptions: []string{
+			"Portfolio and benchmark values must be positive.",
+			"Portfolio and benchmark values must use the same currency; no foreign exchange conversion is applied.",
+			"Comparison uses exact observed start and end dates and does not fill missing benchmark values.",
+			"Portfolio return is value-based CAGR; use XIRR separately when external cash flows should be included.",
+		},
+		RequiredInputs: []string{
+			"beginning portfolio value",
+			"ending portfolio value",
+			"beginning benchmark value",
+			"ending benchmark value",
+			"start date",
+			"end date",
+		},
+		Explanation: "Benchmark comparison measures how the observed portfolio value changed versus an explicitly selected benchmark over the same dates. It does not assume a default benchmark or predict future performance.",
 	}
 }
 
@@ -101,6 +142,54 @@ func XIRRDefinition() MetricDefinition {
 		},
 		Explanation: "XIRR calculates the annualized money-weighted return for irregular cash flows by solving the net present value equation. It reports an error when the supplied flows do not produce a solvable rate.",
 	}
+}
+
+func CalculateBenchmarkComparison(input BenchmarkComparisonInput) (BenchmarkComparisonResult, error) {
+	if !input.PortfolioBeginningValue.GreaterThan(decimal.Zero) {
+		return BenchmarkComparisonResult{}, fmt.Errorf("portfolio beginning value must be greater than zero")
+	}
+	if !input.PortfolioEndingValue.GreaterThan(decimal.Zero) {
+		return BenchmarkComparisonResult{}, fmt.Errorf("portfolio ending value must be greater than zero")
+	}
+	if !input.BenchmarkBeginningValue.GreaterThan(decimal.Zero) {
+		return BenchmarkComparisonResult{}, fmt.Errorf("benchmark beginning value must be greater than zero")
+	}
+	if !input.BenchmarkEndingValue.GreaterThan(decimal.Zero) {
+		return BenchmarkComparisonResult{}, fmt.Errorf("benchmark ending value must be greater than zero")
+	}
+
+	portfolioCAGR, err := CalculateCAGR(CAGRInput{
+		BeginningValue: input.PortfolioBeginningValue,
+		EndingValue:    input.PortfolioEndingValue,
+		StartDate:      input.StartDate,
+		EndDate:        input.EndDate,
+	})
+	if err != nil {
+		return BenchmarkComparisonResult{}, fmt.Errorf("portfolio CAGR: %w", err)
+	}
+
+	benchmarkCAGR, err := CalculateCAGR(CAGRInput{
+		BeginningValue: input.BenchmarkBeginningValue,
+		EndingValue:    input.BenchmarkEndingValue,
+		StartDate:      input.StartDate,
+		EndDate:        input.EndDate,
+	})
+	if err != nil {
+		return BenchmarkComparisonResult{}, fmt.Errorf("benchmark CAGR: %w", err)
+	}
+
+	portfolioTotalReturn := input.PortfolioEndingValue.Div(input.PortfolioBeginningValue).Sub(decimal.NewFromInt(1)).Mul(decimal.NewFromInt(100)).Round(performanceResultDecimal)
+	benchmarkTotalReturn := input.BenchmarkEndingValue.Div(input.BenchmarkBeginningValue).Sub(decimal.NewFromInt(1)).Mul(decimal.NewFromInt(100)).Round(performanceResultDecimal)
+
+	return BenchmarkComparisonResult{
+		PortfolioTotalReturn: portfolioTotalReturn,
+		BenchmarkTotalReturn: benchmarkTotalReturn,
+		PortfolioCAGR:        portfolioCAGR.Rate,
+		BenchmarkCAGR:        benchmarkCAGR.Rate,
+		ExcessTotalReturn:    portfolioTotalReturn.Sub(benchmarkTotalReturn).Round(performanceResultDecimal),
+		ExcessCAGR:           portfolioCAGR.Rate.Sub(benchmarkCAGR.Rate).Round(performanceResultDecimal),
+		Definition:           BenchmarkComparisonDefinition(),
+	}, nil
 }
 
 func CalculatePeriodPnL(input PeriodPnLInput) (PeriodPnLResult, error) {

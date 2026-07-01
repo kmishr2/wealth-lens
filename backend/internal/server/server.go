@@ -8,6 +8,7 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/allocations"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/assets"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/auth"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/benchmarks"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/config"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/holdings"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/middleware"
@@ -47,6 +48,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	holdingsRepo := holdings.NewRepository(db)
 	priceRepo := prices.NewRepository(db)
 	snapshotRepo := snapshots.NewRepository(db)
+	benchmarkRepo := benchmarks.NewRepository(db)
 
 	authService := auth.NewService(cfg, authRepo, userRepo)
 	userService := users.NewService(userRepo)
@@ -61,6 +63,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	snapshotService := snapshots.NewService(snapshotRepo, holdingsRepo, priceRepo, portfolioRepo)
 	performanceService := performance.NewService(portfolioRepo, snapshotRepo, transactionRepo)
 	riskService := risk.NewService(portfolioRepo, snapshotRepo, transactionRepo)
+	benchmarkService := benchmarks.NewService(benchmarkRepo, portfolioRepo, snapshotRepo)
 
 	authHandler := auth.NewHandler(authService)
 	userHandler := users.NewHandler(userService)
@@ -75,6 +78,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	snapshotHandler := snapshots.NewHandler(snapshotService)
 	performanceHandler := performance.NewHandler(performanceService)
 	riskHandler := risk.NewHandler(riskService)
+	benchmarkHandler := benchmarks.NewHandler(benchmarkService)
 
 	v1 := router.Group("/api/v1")
 	authRoutes := v1.Group("")
@@ -95,6 +99,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	snapshots.RegisterRoutes(protected, snapshotHandler)
 	performance.RegisterRoutes(protected, performanceHandler)
 	risk.RegisterRoutes(protected, riskHandler)
+	benchmarks.RegisterRoutes(protected, benchmarkHandler)
 
 	return router, nil
 }

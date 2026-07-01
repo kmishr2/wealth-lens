@@ -172,6 +172,47 @@ func TestCalculateCAGRRejectsInvalidInputs(t *testing.T) {
 	}
 }
 
+func TestCalculateBenchmarkComparisonCalculatesExcessReturn(t *testing.T) {
+	result, err := CalculateBenchmarkComparison(BenchmarkComparisonInput{
+		PortfolioBeginningValue: decimal.RequireFromString("100"),
+		PortfolioEndingValue:    decimal.RequireFromString("125"),
+		BenchmarkBeginningValue: decimal.RequireFromString("20000"),
+		BenchmarkEndingValue:    decimal.RequireFromString("22000"),
+		StartDate:               mustPerformanceDate("2025-01-01"),
+		EndDate:                 mustPerformanceDate("2026-01-01"),
+	})
+	if err != nil {
+		t.Fatalf("CalculateBenchmarkComparison returned error: %v", err)
+	}
+
+	if !result.PortfolioTotalReturn.Equal(decimal.RequireFromString("25")) {
+		t.Fatalf("portfolio total return = %s, want 25", result.PortfolioTotalReturn)
+	}
+	if !result.BenchmarkTotalReturn.Equal(decimal.RequireFromString("10")) {
+		t.Fatalf("benchmark total return = %s, want 10", result.BenchmarkTotalReturn)
+	}
+	if !result.ExcessTotalReturn.Equal(decimal.RequireFromString("15")) {
+		t.Fatalf("excess total return = %s, want 15", result.ExcessTotalReturn)
+	}
+	if result.Definition.Name != "Benchmark Return Comparison" {
+		t.Fatalf("definition = %+v", result.Definition)
+	}
+}
+
+func TestCalculateBenchmarkComparisonRejectsInvalidInputs(t *testing.T) {
+	_, err := CalculateBenchmarkComparison(BenchmarkComparisonInput{
+		PortfolioBeginningValue: decimal.Zero,
+		PortfolioEndingValue:    decimal.RequireFromString("125"),
+		BenchmarkBeginningValue: decimal.RequireFromString("20000"),
+		BenchmarkEndingValue:    decimal.RequireFromString("22000"),
+		StartDate:               mustPerformanceDate("2025-01-01"),
+		EndDate:                 mustPerformanceDate("2026-01-01"),
+	})
+	if err == nil {
+		t.Fatal("CalculateBenchmarkComparison returned nil error")
+	}
+}
+
 func TestCalculateXIRRCalculatesAnnualizedMoneyWeightedReturn(t *testing.T) {
 	result, err := CalculateXIRR([]CashFlow{
 		performanceCashFlow("2024-01-01", "-1000"),
@@ -289,6 +330,14 @@ func performanceCashFlow(date string, amount string) CashFlow {
 		Date:   parsed,
 		Amount: decimal.RequireFromString(amount),
 	}
+}
+
+func mustPerformanceDate(date string) time.Time {
+	parsed, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		panic(err)
+	}
+	return parsed
 }
 
 func assertDecimalApprox(t *testing.T, got decimal.Decimal, want decimal.Decimal, tolerance decimal.Decimal) {

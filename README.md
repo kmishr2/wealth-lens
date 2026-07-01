@@ -185,3 +185,42 @@ when a configured provider fails.
 
 Pending market-data task: generate an Upstox Analytics Token and complete one
 live NSE/BSE equity ingestion test before deployment.
+
+## Benchmark Data and Comparison
+
+Benchmarks are explicit data records, not hardcoded assumptions. Create the
+benchmark first, then add immutable dated observations. Portfolio comparison
+uses exact daily portfolio snapshots and exact benchmark observations for the
+same start date, end date, and currency. It does not interpolate missing
+benchmark values, convert currencies, or choose a default benchmark.
+
+Example:
+
+```bash
+curl -X POST "$API_URL/api/v1/benchmarks" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "NIFTY50",
+    "name": "Nifty 50",
+    "currency": "INR",
+    "source": "manual import",
+    "description": "Indian large-cap equity benchmark"
+  }'
+
+curl -X POST "$API_URL/api/v1/benchmarks/<benchmark-id>/observations" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "observation_date": "2026-01-01",
+    "value": "22000.0000",
+    "source": "manual import"
+  }'
+
+curl "$API_URL/api/v1/portfolios/<portfolio-id>/benchmarks/<benchmark-id>/comparison?start_date=2026-01-01&end_date=2026-02-01&currency=INR" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+The response includes portfolio total return, benchmark total return,
+portfolio CAGR, benchmark CAGR, excess return, excess CAGR, and metric metadata
+explaining the formula and assumptions.
