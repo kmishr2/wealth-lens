@@ -178,6 +178,63 @@ func TestGetCurrentReturnsNotFoundForUnownedPortfolio(t *testing.T) {
 	}
 }
 
+func TestGetConcentrationUsesLedgerDerivedValuation(t *testing.T) {
+	userID := uuid.New()
+	portfolioID := uuid.New()
+	firstAssetID := uuid.New()
+	secondAssetID := uuid.New()
+	firstQuantity := decimal.NewFromInt(3)
+	secondQuantity := decimal.NewFromInt(1)
+	price := decimal.NewFromInt(25)
+	service := NewService(
+		&fakeLedgerReader{records: []holdings.LedgerEntryRecord{
+			{EntryKind: "asset", AssetID: firstAssetID.String(), AssetSymbol: "AAA", AssetName: "First", AssetClass: "equity", Quantity: &firstQuantity, Currency: "INR"},
+			{EntryKind: "asset", AssetID: secondAssetID.String(), AssetSymbol: "BBB", AssetName: "Second", AssetClass: "equity", Quantity: &secondQuantity, Currency: "INR"},
+		}},
+		&fakeLatestPriceReader{prices: []prices.AssetPrice{
+			{AssetID: firstAssetID, Price: price, Currency: "INR", PricedAt: time.Now().UTC()},
+			{AssetID: secondAssetID, Price: price, Currency: "INR", PricedAt: time.Now().UTC()},
+		}},
+		&fakePortfolioReader{portfolio: &portfolios.Portfolio{ID: portfolioID, UserID: userID}},
+	)
+
+	response, err := service.GetConcentration(userID, portfolioID)
+	if err != nil {
+		t.Fatalf("GetConcentration returned error: %v", err)
+	}
+	if len(response.Currencies) != 1 {
+		t.Fatalf("currencies = %+v", response.Currencies)
+	}
+	metric := response.Currencies[0]
+	if !metric.HerfindahlHirschmanIndex.Equal(decimal.NewFromInt(6250)) || metric.LargestAssetSymbol != "AAA" {
+		t.Fatalf("metric = %+v", metric)
+	}
+	if response.MetricMetadata.Name == "" || response.AllocationMetadata.Name == "" || response.ConcentrationScope == "" {
+		t.Fatalf("metadata incomplete: %+v", response)
+	}
+}
+
+func TestGetConcentrationRejectsIncompleteValuation(t *testing.T) {
+	quantity := decimal.NewFromInt(1)
+	assetID := uuid.New()
+	service := NewService(
+		&fakeLedgerReader{records: []holdings.LedgerEntryRecord{{
+			EntryKind: "asset", AssetID: assetID.String(), AssetSymbol: "AAA", AssetName: "First", AssetClass: "equity", Quantity: &quantity, Currency: "INR",
+		}}},
+		&fakeLatestPriceReader{},
+		&fakePortfolioReader{portfolio: &portfolios.Portfolio{ID: uuid.New(), UserID: uuid.New()}},
+	)
+
+	_, err := service.GetConcentration(uuid.New(), uuid.New())
+	if err == nil {
+		t.Fatal("GetConcentration error = nil, want incomplete valuation error")
+	}
+	var appErr *common.AppError
+	if !errors.As(err, &appErr) || appErr.Status != http.StatusBadRequest {
+		t.Fatalf("error = %v, want bad request", err)
+	}
+}
+
 func TestCalculateRebalancingUsesCurrentLedgerDerivedAllocation(t *testing.T) {
 	userID := uuid.New()
 	portfolioID := uuid.New()

@@ -31,6 +31,20 @@ func (h *Handler) GetCurrent(c *gin.Context) {
 	common.RespondOK(c, http.StatusOK, allocation)
 }
 
+func (h *Handler) GetConcentration(c *gin.Context) {
+	userID, portfolioID, ok := parseUserAndPortfolio(c)
+	if !ok {
+		return
+	}
+
+	result, err := h.service.GetConcentration(userID, portfolioID)
+	if err != nil {
+		common.RespondError(c, err)
+		return
+	}
+	common.RespondOK(c, http.StatusOK, result)
+}
+
 func (h *Handler) CalculateRebalancing(c *gin.Context) {
 	userID, portfolioID, ok := parseUserAndPortfolio(c)
 	if !ok {

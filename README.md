@@ -259,3 +259,11 @@ curl "$API_URL/api/v1/portfolios/<portfolio-id>/benchmarks/<benchmark-id>/compar
 The response includes portfolio total return, benchmark total return,
 portfolio CAGR, benchmark CAGR, excess return, excess CAGR, and metric metadata
 explaining the formula and assumptions.
+
+## Asset Concentration
+
+`GET /api/v1/portfolios/<portfolio-id>/concentration` calculates asset
+concentration separately per currency from current ledger-derived holdings and
+explicit market prices. It reports HHI, effective asset count, and the largest
+asset percentage. Cash, currency conversion, subjective labels, and advisory
+thresholds are excluded. A complete valuation is required.
