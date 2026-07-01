@@ -10,6 +10,7 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/auth"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/benchmarks"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/config"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/goals"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/holdings"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/middleware"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/performance"
@@ -49,6 +50,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	priceRepo := prices.NewRepository(db)
 	snapshotRepo := snapshots.NewRepository(db)
 	benchmarkRepo := benchmarks.NewRepository(db)
+	goalRepo := goals.NewRepository(db)
 
 	authService := auth.NewService(cfg, authRepo, userRepo)
 	userService := users.NewService(userRepo)
@@ -64,6 +66,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	performanceService := performance.NewService(portfolioRepo, snapshotRepo, transactionRepo)
 	riskService := risk.NewService(portfolioRepo, snapshotRepo, transactionRepo)
 	benchmarkService := benchmarks.NewService(benchmarkRepo, portfolioRepo, snapshotRepo)
+	goalService := goals.NewService(goalRepo, portfolioRepo, snapshotRepo)
 
 	authHandler := auth.NewHandler(authService)
 	userHandler := users.NewHandler(userService)
@@ -79,6 +82,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	performanceHandler := performance.NewHandler(performanceService)
 	riskHandler := risk.NewHandler(riskService)
 	benchmarkHandler := benchmarks.NewHandler(benchmarkService)
+	goalHandler := goals.NewHandler(goalService)
 
 	v1 := router.Group("/api/v1")
 	authRoutes := v1.Group("")
@@ -100,6 +104,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	performance.RegisterRoutes(protected, performanceHandler)
 	risk.RegisterRoutes(protected, riskHandler)
 	benchmarks.RegisterRoutes(protected, benchmarkHandler)
+	goals.RegisterRoutes(protected, goalHandler)
 
 	return router, nil
 }

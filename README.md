@@ -161,6 +161,23 @@ after the Sunday daily portfolio snapshot has been created. Missing boundary
 daily snapshots are reported per portfolio without stopping the remaining
 portfolios.
 
+## Monthly Goal Snapshots
+
+Goals are explicit portfolio targets. Create goals through the API, then run
+the monthly snapshot job after the month-end daily portfolio snapshot exists.
+The job calculates current value, progress percentage, remaining amount,
+months remaining, and required monthly contribution without assuming future
+returns, inflation, taxes, fees, or currency conversion.
+
+```bash
+make snapshot-goals-monthly DATE=2026-01-31
+```
+
+`DATE` must be the final UTC day of a month. Monthly goal snapshots are
+immutable and idempotent by goal and month-end date. A missing month-end daily
+portfolio snapshot or missing goal currency is reported as a deterministic
+validation failure.
+
 ## Nightly Indian Market Prices
 
 The price job uses AMFI's public official daily NAV feed for Indian mutual
