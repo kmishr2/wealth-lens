@@ -53,6 +53,50 @@ export type Account = {
   updated_at: string;
 };
 
+export type Asset = {
+  id: string;
+  symbol: string;
+  name: string;
+  asset_class: string;
+  risk_category: "equity" | "debt" | "cash_other" | null;
+  currency: string;
+  exchange: string;
+  is_active: boolean;
+};
+
+export type TransactionType =
+  | "deposit"
+  | "withdrawal"
+  | "buy"
+  | "sell"
+  | "fee"
+  | "tax"
+  | "transfer"
+  | "reversal";
+
+export type TransactionEntry = {
+  id: string;
+  entry_kind: "cash" | "asset" | "fee" | "tax";
+  asset_id?: string;
+  quantity?: string;
+  amount?: string;
+  currency: string;
+  created_at: string;
+};
+
+export type Transaction = {
+  id: string;
+  portfolio_id: string;
+  account_id: string;
+  transaction_type: TransactionType;
+  occurred_at: string;
+  description: string;
+  entries: TransactionEntry[];
+  reverses_transaction_id?: string;
+  corrects_transaction_id?: string;
+  created_at: string;
+};
+
 export type FormState = {
   message: string;
   success?: boolean;

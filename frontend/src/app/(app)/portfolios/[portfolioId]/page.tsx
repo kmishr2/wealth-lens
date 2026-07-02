@@ -109,8 +109,9 @@ export default async function PortfolioPage({
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {accounts.map((account) => (
-                <article
+                <Link
                   className="rounded-3xl border border-[var(--line)] bg-[var(--surface-strong)] p-6 shadow-[0_6px_25px_rgba(23,32,28,0.04)]"
+                  href={`/portfolios/${portfolio.id}/accounts/${account.id}`}
                   key={account.id}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -135,7 +136,7 @@ export default async function PortfolioPage({
                       Transactions next →
                     </span>
                   </div>
-                </article>
+                </Link>
               ))}
             </div>
           )}
