@@ -5,7 +5,12 @@ import { HealthScoreCard } from "@/components/health-score-card";
 import { apiRequest, ApiError } from "@/lib/api";
 import { getAccessToken, getRefreshToken } from "@/lib/session";
 import type {
+  Benchmark,
+  BenchmarkBeta,
+  BenchmarkComparison,
   Portfolio,
+  PortfolioConcentration,
+  PortfolioDiversificationAlerts,
   PortfolioHealth,
   PortfolioPerformance,
   PortfolioRisk,
@@ -20,14 +25,16 @@ async function loadAnalytics(
   portfolioID: string,
   requestedStart?: string,
   requestedEnd?: string,
+  requestedBenchmark?: string,
 ) {
   const accessToken = await getAccessToken();
   if (!accessToken) redirect("/login");
   const encodedID = encodeURIComponent(portfolioID);
   try {
-    const [portfolio, snapshots] = await Promise.all([
+    const [portfolio, snapshots, benchmarks] = await Promise.all([
       apiRequest<Portfolio>(`/portfolios/${encodedID}`, { accessToken }),
       apiRequest<PortfolioSnapshot[]>(`/portfolios/${encodedID}/snapshots?limit=100`, { accessToken }),
+      apiRequest<Benchmark[]>("/benchmarks?limit=100", { accessToken }),
     ]);
     const daily = snapshots.filter((snapshot) => snapshot.snapshot_period === "daily");
     const availableDates = new Set(daily.map((snapshot) => snapshot.snapshot_date));
@@ -35,9 +42,14 @@ async function loadAnalytics(
     const oldest = daily[daily.length - 1]?.snapshot_date;
     const startDate = requestedStart && availableDates.has(requestedStart) ? requestedStart : oldest;
     const endDate = requestedEnd && availableDates.has(requestedEnd) ? requestedEnd : latest;
+    const selectedBenchmark = benchmarks.find((benchmark) => benchmark.id === requestedBenchmark) ?? benchmarks[0] ?? null;
+    const [concentration, alerts] = await Promise.all([
+      metricRequest<PortfolioConcentration>(`/portfolios/${encodedID}/concentration`, accessToken),
+      metricRequest<PortfolioDiversificationAlerts>(`/portfolios/${encodedID}/diversification-alerts`, accessToken),
+    ]);
 
     if (!startDate || !endDate || startDate >= endDate) {
-      return { portfolio, daily, startDate, endDate, performance: emptyMetric<PortfolioPerformance>(), risk: emptyMetric<PortfolioRisk>(), health: emptyMetric<PortfolioHealth>() };
+      return { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, concentration, alerts, performance: emptyMetric<PortfolioPerformance>(), risk: emptyMetric<PortfolioRisk>(), health: emptyMetric<PortfolioHealth>(), comparison: emptyMetric<BenchmarkComparison>(), beta: emptyMetric<BenchmarkBeta>() };
     }
 
     const query = `start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`;
@@ -49,7 +61,17 @@ async function loadAnalytics(
       method: "POST",
       body: JSON.stringify({ as_of_date: endDate, risk_profile: "moderate" }),
     });
-    return { portfolio, daily, startDate, endDate, performance, risk, health };
+    let comparison = { data: null, error: "Choose a benchmark." } as MetricState<BenchmarkComparison>;
+    let beta = { data: null, error: "Choose a benchmark." } as MetricState<BenchmarkBeta>;
+    if (selectedBenchmark) {
+      const benchmarkPath = `/portfolios/${encodedID}/benchmarks/${encodeURIComponent(selectedBenchmark.id)}`;
+      const benchmarkQuery = `${query}&currency=${encodeURIComponent(selectedBenchmark.currency)}`;
+      [comparison, beta] = await Promise.all([
+        metricRequest<BenchmarkComparison>(`${benchmarkPath}/comparison?${benchmarkQuery}`, accessToken),
+        metricRequest<BenchmarkBeta>(`${benchmarkPath}/beta?${benchmarkQuery}`, accessToken),
+      ]);
+    }
+    return { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, concentration, alerts, performance, risk, health, comparison, beta };
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       if (await getRefreshToken()) redirect(`/auth/refresh?next=${encodeURIComponent(`/portfolios/${portfolioID}/analytics`)}`);
@@ -78,14 +100,15 @@ export default async function AnalyticsPage({
   searchParams,
 }: {
   params: Promise<{ portfolioId: string }>;
-  searchParams: Promise<{ start?: string; end?: string }>;
+  searchParams: Promise<{ start?: string; end?: string; benchmark?: string }>;
 }) {
   const { portfolioId } = await params;
   const requested = await searchParams;
-  const { portfolio, daily, startDate, endDate, performance, risk, health } = await loadAnalytics(
+  const { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, concentration, alerts, performance, risk, health, comparison, beta } = await loadAnalytics(
     portfolioId,
     requested.start,
     requested.end,
+    requested.benchmark,
   );
 
   return (
@@ -101,9 +124,16 @@ export default async function AnalyticsPage({
             Every value below comes from immutable snapshots and disclosed backend formulas. Missing history is shown rather than estimated.
           </p>
         </div>
-        <form className="grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:grid-cols-[1fr_1fr_auto]" method="GET">
+        <form className="grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:grid-cols-[1fr_1fr_1.2fr_auto]" method="GET">
           <DateField label="Start" name="start" value={startDate ?? ""} />
           <DateField label="End" name="end" value={endDate ?? ""} />
+          <label className="text-xs font-semibold text-[var(--muted)]">
+            Benchmark
+            <select className="focus-ring mt-1 block w-full rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm text-[var(--ink)]" defaultValue={selectedBenchmark?.id ?? ""} name="benchmark">
+              <option value="">None available</option>
+              {benchmarks.map((benchmark) => <option key={benchmark.id} value={benchmark.id}>{benchmark.code} · {benchmark.currency}</option>)}
+            </select>
+          </label>
           <button className="focus-ring self-end rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-white" type="submit">Apply</button>
         </form>
       </div>
@@ -112,6 +142,36 @@ export default async function AnalyticsPage({
         <Unavailable message="Analytics require at least two daily snapshots. Run the daily snapshot job after recording transactions and prices." />
       ) : (
         <div className="mt-9 space-y-9">
+          <section aria-labelledby="diversification-title">
+            <SectionHeading eyebrow="Current valued assets" title="Concentration & diversification" id="diversification-title" />
+            {concentration.data ? (
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {concentration.data.currencies.map((item) => {
+                  const alert = alerts.data?.alerts.find((candidate) => candidate.currency === item.currency);
+                  return (
+                    <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6" key={item.currency}>
+                      <div className="flex items-center justify-between gap-4">
+                        <p className="eyebrow">{item.currency}</p>
+                        {alert && <SeverityBadge severity={alert.severity} />}
+                      </div>
+                      <div className="mt-5 grid grid-cols-2 gap-5">
+                        <SmallMetric label="Largest asset" value={formatPercent(item.largest_asset_percentage)} />
+                        <SmallMetric label="Effective assets" value={formatNumber(item.effective_asset_count)} />
+                        <SmallMetric label="Holdings" value={String(item.asset_count)} />
+                        <SmallMetric label="HHI" value={formatNumber(item.herfindahl_hirschman_index)} />
+                      </div>
+                      {alert && alert.conditions.length > 0 && (
+                        <ul className="mt-5 space-y-1 border-t border-[var(--line)] pt-4 text-xs leading-5 text-[var(--muted)]">
+                          {alert.conditions.map((condition) => <li key={condition}>• {condition}</li>)}
+                        </ul>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            ) : <Unavailable message={concentration.error} />}
+          </section>
+
           <section aria-labelledby="performance-title">
             <SectionHeading eyebrow="Returns" title="Performance" id="performance-title" />
             {performance.data ? (
@@ -159,6 +219,32 @@ export default async function AnalyticsPage({
               </div>
             ) : <Unavailable message={health.error} />}
           </section>
+
+          <section aria-labelledby="benchmark-title">
+            <SectionHeading eyebrow="Explicit reference series" title="Benchmark comparison" id="benchmark-title" />
+            {comparison.data ? (
+              <div className="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface-strong)] p-6">
+                  <div className="flex items-center justify-between gap-4"><div><p className="eyebrow">{comparison.data.benchmark_code}</p><h3 className="mt-2 text-xl font-semibold">{comparison.data.benchmark_name}</h3></div><span className="rounded-full border border-[var(--line)] px-3 py-1 text-xs font-bold text-[var(--muted)]">{comparison.data.currency}</span></div>
+                  <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                    <ComparisonColumn title="Portfolio" total={comparison.data.portfolio_total_return} cagr={comparison.data.portfolio_cagr} />
+                    <ComparisonColumn title="Benchmark" total={comparison.data.benchmark_total_return} cagr={comparison.data.benchmark_cagr} />
+                  </div>
+                  <div className="mt-6 grid grid-cols-2 gap-4 border-t border-[var(--line)] pt-5">
+                    <SmallMetric label="Excess return" value={formatPercent(comparison.data.excess_total_return)} />
+                    <SmallMetric label="Excess CAGR" value={formatPercent(comparison.data.excess_cagr)} />
+                  </div>
+                </article>
+                {beta.data ? (
+                  <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6">
+                    <p className="eyebrow">Historical co-movement</p>
+                    <Metric label="Beta" value={formatNumber(beta.data.beta)} />
+                    <p className="mt-5 border-t border-[var(--line)] pt-4 text-xs leading-5 text-[var(--muted)]">{beta.data.aligned_observation_count} aligned observations · {beta.data.paired_return_count} return pairs</p>
+                  </article>
+                ) : <Unavailable message={beta.error} />}
+              </div>
+            ) : <Unavailable message={comparison.error || "Choose a benchmark with exact observations on both selected dates."} />}
+          </section>
         </div>
       )}
     </main>
@@ -181,6 +267,15 @@ function SmallMetric({ label, value }: { label: string; value: string }) {
   return <div><p className="text-xs text-[var(--muted)]">{label}</p><p className="mt-1 font-mono text-lg font-semibold">{value}</p></div>;
 }
 
+function ComparisonColumn({ title, total, cagr }: { title: string; total: string; cagr: string }) {
+  return <div className="rounded-2xl bg-[#f1f2ed] p-5"><p className="text-sm font-semibold">{title}</p><div className="mt-4 grid grid-cols-2 gap-3"><SmallMetric label="Total return" value={formatPercent(total)} /><SmallMetric label="CAGR" value={formatPercent(cagr)} /></div></div>;
+}
+
+function SeverityBadge({ severity }: { severity: "none" | "notice" | "warning" | "critical" }) {
+  const styles = { none: "bg-[#edf7f1] text-[var(--brand)]", notice: "bg-[#fff8e8] text-[#76551f]", warning: "bg-[#fff0d8] text-[#8a4b16]", critical: "bg-[#fff4f2] text-[var(--danger)]" };
+  return <span className={`rounded-full px-3 py-1 text-xs font-bold capitalize ${styles[severity]}`}>{severity}</span>;
+}
+
 function Unavailable({ message }: { message: string }) {
   return <div className="mt-5 rounded-2xl border border-dashed border-[#bdc6c0] bg-[var(--surface)] p-6 text-sm leading-6 text-[var(--muted)]">{message}</div>;
 }
@@ -191,4 +286,8 @@ function formatMoney(value: string, currency: string) {
 
 function formatPercent(value: string) {
   return `${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(Number(value))}%`;
+}
+
+function formatNumber(value: string) {
+  return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(Number(value));
 }

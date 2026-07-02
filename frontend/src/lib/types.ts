@@ -325,6 +325,88 @@ export type WhatIfComparison = {
   scope: string;
 };
 
+export type Benchmark = {
+  id: string;
+  code: string;
+  name: string;
+  currency: string;
+  source: string;
+  description: string;
+  created_at: string;
+};
+
+export type BenchmarkComparison = {
+  portfolio_id: string;
+  benchmark_id: string;
+  benchmark_code: string;
+  benchmark_name: string;
+  currency: string;
+  start_date: string;
+  end_date: string;
+  portfolio_start_value: string;
+  portfolio_end_value: string;
+  benchmark_start_value: string;
+  benchmark_end_value: string;
+  portfolio_total_return: string;
+  benchmark_total_return: string;
+  portfolio_cagr: string;
+  benchmark_cagr: string;
+  excess_total_return: string;
+  excess_cagr: string;
+  comparison_scope: string;
+  comparison_metadata: MetricDefinition;
+};
+
+export type BenchmarkBeta = {
+  portfolio_id: string;
+  benchmark_id: string;
+  benchmark_code: string;
+  currency: string;
+  start_date: string;
+  end_date: string;
+  aligned_observation_count: number;
+  paired_return_count: number;
+  beta: string;
+  scope: string;
+  metric_metadata: MetricDefinition;
+};
+
+export type CurrencyConcentration = {
+  currency: string;
+  asset_count: number;
+  invested_value: string;
+  herfindahl_hirschman_index: string;
+  effective_asset_count: string;
+  largest_asset_id: string;
+  largest_asset_symbol: string;
+  largest_asset_percentage: string;
+};
+
+export type PortfolioConcentration = {
+  portfolio_id: string;
+  currencies: CurrencyConcentration[];
+  concentration_scope: string;
+  metric_metadata: MetricDefinition;
+};
+
+export type DiversificationAlert = {
+  currency: string;
+  severity: "none" | "notice" | "warning" | "critical";
+  points: number;
+  largest_asset_id: string;
+  largest_asset_symbol: string;
+  largest_asset_percentage: string;
+  holding_count: number;
+  conditions: string[];
+};
+
+export type PortfolioDiversificationAlerts = {
+  portfolio_id: string;
+  alerts: DiversificationAlert[];
+  alert_scope: string;
+  alert_metadata: MetricDefinition;
+};
+
 export type FormState = {
   message: string;
   success?: boolean;
