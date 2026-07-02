@@ -35,3 +35,27 @@ func (h *Handler) CalculateSIP(c *gin.Context) {
 	}
 	common.RespondOK(c, http.StatusOK, response)
 }
+
+func (h *Handler) CompareWhatIf(c *gin.Context) {
+	userID, err := middleware.CurrentUserID(c)
+	if err != nil {
+		common.RespondError(c, err)
+		return
+	}
+	portfolioID, err := uuid.Parse(c.Param("portfolioId"))
+	if err != nil {
+		common.RespondError(c, common.NotFound("Portfolio not found"))
+		return
+	}
+	var req WhatIfRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.RespondError(c, common.BadRequest("Invalid request body"))
+		return
+	}
+	response, err := h.service.CompareWhatIf(userID, portfolioID, req)
+	if err != nil {
+		common.RespondError(c, err)
+		return
+	}
+	common.RespondOK(c, http.StatusOK, response)
+}

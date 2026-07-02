@@ -21,3 +21,28 @@ type SIPResponse struct {
 	finance.SIPProjectionResult
 	Scope string `json:"scope"`
 }
+
+type WhatIfScenarioRequest struct {
+	Name  string           `json:"name"`
+	Input SIPScenarioInput `json:"input"`
+}
+
+type SIPScenarioInput struct {
+	InitialInvestment         *decimal.Decimal `json:"initial_investment"`
+	MonthlyContribution       *decimal.Decimal `json:"monthly_contribution"`
+	AnnualReturnPercentage    *decimal.Decimal `json:"annual_return_percentage"`
+	AnnualInflationPercentage *decimal.Decimal `json:"annual_inflation_percentage"`
+	Months                    int              `json:"months"`
+}
+
+type WhatIfRequest struct {
+	Currency  string                  `json:"currency"`
+	Scenarios []WhatIfScenarioRequest `json:"scenarios"`
+}
+
+type WhatIfResponse struct {
+	PortfolioID uuid.UUID `json:"portfolio_id"`
+	Currency    string    `json:"currency"`
+	finance.WhatIfComparisonResult
+	Scope string `json:"scope"`
+}

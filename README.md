@@ -337,3 +337,11 @@ response includes every monthly point, total contributions, nominal growth,
 and nominal and inflation-adjusted values. Assumed returns remain explicit and
 are simulations, not predictions. Projected values are never stored as
 portfolio truth.
+
+Compare two to ten named scenarios with the same currency and horizon using
+`POST /api/v1/portfolios/<portfolio-id>/projections/what-if`. The first
+scenario is the explicit baseline. Each scenario contains an `input` object
+with the same amount and rate fields as a SIP projection, excluding currency.
+The response includes each full projection and its nominal value, real value,
+and contribution differences from the baseline. Scenario order and results are
+deterministic, and nothing is persisted.
