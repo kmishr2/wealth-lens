@@ -97,6 +97,85 @@ export type Transaction = {
   created_at: string;
 };
 
+export type MetricDefinition = {
+  name: string;
+  formula: string;
+  assumptions: string[];
+  required_inputs: string[];
+  explanation: string;
+};
+
+export type AssetHolding = {
+  asset_id: string;
+  asset_symbol: string;
+  asset_name: string;
+  asset_class: string;
+  quantity: string;
+  currency: string;
+};
+
+export type CashBalance = { currency: string; amount: string };
+
+export type HoldingsResponse = {
+  portfolio_id: string;
+  asset_holdings: AssetHolding[];
+  cash_balances: CashBalance[];
+  metric_metadata: MetricDefinition;
+};
+
+export type CurrencyValue = { currency: string; amount: string };
+
+export type MissingPrice = {
+  asset_id: string;
+  asset_symbol: string;
+  asset_name: string;
+  currency: string;
+  reason: string;
+};
+
+export type PortfolioValuation = {
+  portfolio_id: string;
+  total_values: CurrencyValue[];
+  missing_prices: MissingPrice[];
+  is_fully_valued: boolean;
+  valuation_scope: string;
+  metric_metadata: MetricDefinition;
+};
+
+export type AssetAllocation = {
+  asset_id: string;
+  asset_symbol: string;
+  asset_name: string;
+  asset_class: string;
+  risk_category: string;
+  currency: string;
+  market_value: string;
+  percentage: string;
+};
+
+export type AssetClassAllocation = {
+  asset_class: string;
+  currency: string;
+  market_value: string;
+  percentage: string;
+};
+
+export type PortfolioAllocation = {
+  portfolio_id: string;
+  asset_allocations: AssetAllocation[];
+  asset_class_allocations: AssetClassAllocation[];
+  cash_allocations: Array<{
+    currency: string;
+    amount: string;
+    percentage: string;
+  }>;
+  currency_totals: CurrencyValue[];
+  missing_prices: MissingPrice[];
+  is_complete: boolean;
+  allocation_scope: string;
+  metric_metadata: MetricDefinition;
+};
+
 export type FormState = {
   message: string;
   success?: boolean;
