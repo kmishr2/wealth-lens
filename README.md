@@ -345,3 +345,19 @@ with the same amount and rate fields as a SIP projection, excluding currency.
 The response includes each full projection and its nominal value, real value,
 and contribution differences from the baseline. Scenario order and results are
 deterministic, and nothing is persisted.
+
+## Contribution Analysis
+
+Historical contribution attribution uses exact boundary snapshots and the
+immutable transaction ledger:
+
+```bash
+curl "$API_URL/api/v1/portfolios/<portfolio-id>/contributions?start_date=2026-01-31&end_date=2026-06-30&currency=INR" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+The response separates positive deposits, withdrawals, net contributions, and
+investment growth using `ending value - beginning value - net contributions`.
+It also returns UTC monthly cash-flow buckets. Both boundary snapshots must be
+fully valued and contain the requested currency; no interpolation or currency
+conversion is performed.
