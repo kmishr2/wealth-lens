@@ -64,6 +64,17 @@ export type Asset = {
   is_active: boolean;
 };
 
+export type AssetPrice = {
+  id: string;
+  asset_id: string;
+  price: string;
+  currency: string;
+  priced_at: string;
+  source: string;
+  note: string;
+  created_at: string;
+};
+
 export type TransactionType =
   | "deposit"
   | "withdrawal"

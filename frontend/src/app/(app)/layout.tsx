@@ -16,6 +16,10 @@ export default async function AppLayout({
             <BrandMark />
           </Link>
           <div className="flex items-center gap-4">
+            <nav className="flex items-center gap-1" aria-label="Primary navigation">
+              <Link className="focus-ring hidden rounded-lg px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] sm:block" href="/dashboard">Portfolios</Link>
+              <Link className="focus-ring rounded-lg px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)]" href="/assets">Assets</Link>
+            </nav>
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold">{user.display_name}</p>
               <p className="text-xs text-[var(--muted)]">{user.email}</p>
