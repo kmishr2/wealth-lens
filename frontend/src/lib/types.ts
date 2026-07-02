@@ -407,6 +407,54 @@ export type PortfolioDiversificationAlerts = {
   alert_metadata: MetricDefinition;
 };
 
+export type MonthlyContributionBucket = {
+  month: string;
+  contributions: string;
+  withdrawals: string;
+  net_contributions: string;
+  event_count: number;
+};
+
+export type ContributionAnalysis = {
+  portfolio_id: string;
+  currency: string;
+  start_date: string;
+  end_date: string;
+  beginning_value: string;
+  ending_value: string;
+  contributions: string;
+  withdrawals: string;
+  net_contributions: string;
+  investment_growth: string;
+  event_count: number;
+  monthly_buckets: MonthlyContributionBucket[];
+  definition: MetricDefinition;
+  scope: string;
+};
+
+export type RebalancingItem = {
+  asset_class: string;
+  currency: string;
+  current_value: string;
+  current_percentage: string;
+  target_value: string;
+  target_percentage: string;
+  drift_percentage: string;
+  absolute_drift: string;
+  is_outside_tolerance: boolean;
+  suggested_adjustment: string;
+  action: "none" | "increase" | "decrease";
+};
+
+export type RebalancingResponse = {
+  portfolio_id: string;
+  items: RebalancingItem[];
+  drift_tolerance_percentage: string;
+  rebalancing_scope: string;
+  metric_metadata: MetricDefinition;
+  drift_metadata: MetricDefinition;
+};
+
 export type FormState = {
   message: string;
   success?: boolean;

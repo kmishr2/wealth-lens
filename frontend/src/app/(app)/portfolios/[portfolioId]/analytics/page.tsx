@@ -2,13 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { HealthScoreCard } from "@/components/health-score-card";
+import { RebalancingForm } from "@/components/rebalancing-form";
 import { apiRequest, ApiError } from "@/lib/api";
 import { getAccessToken, getRefreshToken } from "@/lib/session";
 import type {
   Benchmark,
   BenchmarkBeta,
   BenchmarkComparison,
+  ContributionAnalysis,
   Portfolio,
+  PortfolioAllocation,
   PortfolioConcentration,
   PortfolioDiversificationAlerts,
   PortfolioHealth,
@@ -43,17 +46,19 @@ async function loadAnalytics(
     const startDate = requestedStart && availableDates.has(requestedStart) ? requestedStart : oldest;
     const endDate = requestedEnd && availableDates.has(requestedEnd) ? requestedEnd : latest;
     const selectedBenchmark = benchmarks.find((benchmark) => benchmark.id === requestedBenchmark) ?? benchmarks[0] ?? null;
-    const [concentration, alerts] = await Promise.all([
+    const [allocation, concentration, alerts] = await Promise.all([
+      metricRequest<PortfolioAllocation>(`/portfolios/${encodedID}/allocation`, accessToken),
       metricRequest<PortfolioConcentration>(`/portfolios/${encodedID}/concentration`, accessToken),
       metricRequest<PortfolioDiversificationAlerts>(`/portfolios/${encodedID}/diversification-alerts`, accessToken),
     ]);
 
     if (!startDate || !endDate || startDate >= endDate) {
-      return { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, concentration, alerts, performance: emptyMetric<PortfolioPerformance>(), risk: emptyMetric<PortfolioRisk>(), health: emptyMetric<PortfolioHealth>(), comparison: emptyMetric<BenchmarkComparison>(), beta: emptyMetric<BenchmarkBeta>() };
+      return { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, allocation, concentration, alerts, performance: emptyMetric<PortfolioPerformance>(), contribution: emptyMetric<ContributionAnalysis>(), risk: emptyMetric<PortfolioRisk>(), health: emptyMetric<PortfolioHealth>(), comparison: emptyMetric<BenchmarkComparison>(), beta: emptyMetric<BenchmarkBeta>() };
     }
 
     const query = `start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`;
     const performance = await metricRequest<PortfolioPerformance>(`/portfolios/${encodedID}/performance?${query}`, accessToken);
+    const contribution = await metricRequest<ContributionAnalysis>(`/portfolios/${encodedID}/contributions?${query}&currency=${encodeURIComponent(portfolio.base_currency)}`, accessToken);
     const risk = daily.length >= 3
       ? await metricRequest<PortfolioRisk>(`/portfolios/${encodedID}/risk?${query}&periods_per_year=252`, accessToken)
       : { data: null, error: "Risk metrics require at least three daily snapshots." };
@@ -71,7 +76,7 @@ async function loadAnalytics(
         metricRequest<BenchmarkBeta>(`${benchmarkPath}/beta?${benchmarkQuery}`, accessToken),
       ]);
     }
-    return { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, concentration, alerts, performance, risk, health, comparison, beta };
+    return { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, allocation, concentration, alerts, performance, contribution, risk, health, comparison, beta };
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       if (await getRefreshToken()) redirect(`/auth/refresh?next=${encodeURIComponent(`/portfolios/${portfolioID}/analytics`)}`);
@@ -104,7 +109,7 @@ export default async function AnalyticsPage({
 }) {
   const { portfolioId } = await params;
   const requested = await searchParams;
-  const { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, concentration, alerts, performance, risk, health, comparison, beta } = await loadAnalytics(
+  const { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, allocation, concentration, alerts, performance, contribution, risk, health, comparison, beta } = await loadAnalytics(
     portfolioId,
     requested.start,
     requested.end,
@@ -211,6 +216,27 @@ export default async function AnalyticsPage({
             ) : <Unavailable message={risk.error} />}
           </section>
 
+          <section aria-labelledby="contribution-title">
+            <SectionHeading eyebrow="Value attribution" title="Contributions & growth" id="contribution-title" />
+            {contribution.data ? (
+              <div className="mt-5 rounded-3xl border border-[var(--line)] bg-[var(--surface-strong)] p-6">
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                  <SmallMetric label="Deposits" value={formatMoney(contribution.data.contributions, contribution.data.currency)} />
+                  <SmallMetric label="Withdrawals" value={formatMoney(contribution.data.withdrawals, contribution.data.currency)} />
+                  <SmallMetric label="Net contributions" value={formatMoney(contribution.data.net_contributions, contribution.data.currency)} />
+                  <SmallMetric label="Investment growth" value={formatMoney(contribution.data.investment_growth, contribution.data.currency)} />
+                </div>
+                {contribution.data.monthly_buckets.length > 0 && (
+                  <div className="mt-6 overflow-x-auto border-t border-[var(--line)] pt-5">
+                    <table className="w-full min-w-150 text-left text-sm"><thead className="text-xs uppercase tracking-wide text-[var(--muted)]"><tr><th className="pb-3">Month</th><th className="pb-3">Deposits</th><th className="pb-3">Withdrawals</th><th className="pb-3">Net</th><th className="pb-3">Events</th></tr></thead>
+                      <tbody className="divide-y divide-[var(--line)]">{contribution.data.monthly_buckets.map((bucket) => <tr key={bucket.month}><td className="py-3 font-semibold">{bucket.month}</td><td>{formatMoney(bucket.contributions, contribution.data!.currency)}</td><td>{formatMoney(bucket.withdrawals, contribution.data!.currency)}</td><td>{formatMoney(bucket.net_contributions, contribution.data!.currency)}</td><td>{bucket.event_count}</td></tr>)}</tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : <Unavailable message={contribution.error} />}
+          </section>
+
           <section aria-labelledby="health-title">
             <SectionHeading eyebrow="Rule-based score" title="Portfolio health" id="health-title" />
             {health.data ? (
@@ -244,6 +270,11 @@ export default async function AnalyticsPage({
                 ) : <Unavailable message={beta.error} />}
               </div>
             ) : <Unavailable message={comparison.error || "Choose a benchmark with exact observations on both selected dates."} />}
+          </section>
+
+          <section aria-labelledby="rebalancing-title">
+            <div className="sr-only" id="rebalancing-title">Rebalancing</div>
+            {allocation.data ? <RebalancingForm portfolioID={portfolio.id} allocations={allocation.data.asset_class_allocations} /> : <Unavailable message={allocation.error} />}
           </section>
         </div>
       )}
