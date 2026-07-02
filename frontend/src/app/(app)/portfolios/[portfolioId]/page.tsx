@@ -87,13 +87,18 @@ export default async function PortfolioPage({
               "Add the accounts that contain this portfolio’s financial events."}
           </p>
         </div>
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-4 sm:min-w-44">
+        <div className="flex items-center gap-3">
+          <Link className="focus-ring rounded-xl bg-[var(--brand)] px-4 py-3 text-sm font-semibold text-white" href={`/portfolios/${portfolio.id}/analytics`}>
+            View analytics
+          </Link>
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-4 sm:min-w-36">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
             Accounts
           </p>
           <p className="mt-1 text-3xl font-semibold tracking-[-0.04em]">
             {accounts.length}
           </p>
+          </div>
         </div>
       </div>
 

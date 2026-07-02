@@ -176,6 +176,85 @@ export type PortfolioAllocation = {
   metric_metadata: MetricDefinition;
 };
 
+export type PortfolioSnapshot = {
+  id: string;
+  portfolio_id: string;
+  snapshot_date: string;
+  snapshot_period: "daily";
+  total_values: CurrencyValue[];
+  is_fully_valued: boolean;
+};
+
+export type CurrencyPerformance = {
+  currency: string;
+  beginning_value: string;
+  ending_value: string;
+  net_external_cash_flow: string;
+  profit_loss: string;
+  cagr: string;
+  xirr: string;
+  cash_flow_count: number;
+};
+
+export type PortfolioPerformance = {
+  portfolio_id: string;
+  start_date: string;
+  end_date: string;
+  currency_returns: CurrencyPerformance[];
+  performance_scope: string;
+  pnl_metadata: MetricDefinition;
+  cagr_metadata: MetricDefinition;
+  xirr_metadata: MetricDefinition;
+};
+
+export type CurrencyRisk = {
+  currency: string;
+  observation_count: number;
+  periodic_return_count: number;
+  annualized_volatility: string;
+  maximum_drawdown: string;
+  peak_date: string;
+  trough_date: string;
+};
+
+export type PortfolioRisk = {
+  portfolio_id: string;
+  start_date: string;
+  end_date: string;
+  periods_per_year: string;
+  currency_risk: CurrencyRisk[];
+  risk_scope: string;
+  volatility_metadata: MetricDefinition;
+  drawdown_metadata: MetricDefinition;
+};
+
+export type HealthComponent = {
+  category: string;
+  points: number;
+  maximum: number;
+  observed: string;
+  threshold: string;
+  explanation: string;
+};
+
+export type CurrencyHealthScore = {
+  currency: string;
+  score: number;
+  maximum: number;
+  components: HealthComponent[];
+  definition: MetricDefinition;
+};
+
+export type PortfolioHealth = {
+  portfolio_id: string;
+  start_date: string;
+  end_date: string;
+  risk_profile: string;
+  periods_per_year: string;
+  scores: CurrencyHealthScore[];
+  scope: string;
+};
+
 export type FormState = {
   message: string;
   success?: boolean;
