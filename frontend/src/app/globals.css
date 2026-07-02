@@ -62,3 +62,20 @@ a {
   outline: 3px solid rgba(31, 90, 68, 0.22);
   outline-offset: 2px;
 }
+
+.planning-input {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: white;
+  padding: 0.75rem 1rem;
+  color: var(--ink);
+  outline: none;
+}
+
+.planning-input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(31, 90, 68, 0.14);
+}

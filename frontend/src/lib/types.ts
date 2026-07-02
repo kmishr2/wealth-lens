@@ -255,6 +255,76 @@ export type PortfolioHealth = {
   scope: string;
 };
 
+export type Goal = {
+  id: string;
+  portfolio_id: string;
+  name: string;
+  target_amount: string;
+  currency: string;
+  target_date: string;
+  status: "active" | "completed" | "archived";
+  created_at: string;
+  updated_at: string;
+};
+
+export type MonthlyGoalSnapshot = {
+  id: string;
+  portfolio_id: string;
+  goal_id: string;
+  snapshot_month_end: string;
+  current_value: string;
+  target_value: string;
+  currency: string;
+  progress_percentage: string;
+  remaining_amount: string;
+  months_remaining: number;
+  required_monthly_contribution: string;
+  is_target_reached: boolean;
+  goal_progress_metadata: MetricDefinition;
+};
+
+export type SIPProjectionPoint = {
+  month: number;
+  total_contributions: string;
+  projected_nominal_value: string;
+  projected_real_value: string;
+};
+
+export type SIPProjection = {
+  portfolio_id: string;
+  currency: string;
+  initial_investment: string;
+  monthly_contribution: string;
+  annual_return_percentage: string;
+  annual_inflation_percentage: string;
+  months: number;
+  total_contributions: string;
+  projected_nominal_value: string;
+  projected_real_value: string;
+  nominal_investment_growth: string;
+  schedule: SIPProjectionPoint[];
+  definition: MetricDefinition;
+  scope: string;
+};
+
+export type WhatIfScenarioResult = {
+  name: string;
+  projection: Omit<SIPProjection, "portfolio_id" | "currency" | "scope">;
+  nominal_difference_from_baseline: string;
+  real_difference_from_baseline: string;
+  contribution_difference_from_baseline: string;
+};
+
+export type WhatIfComparison = {
+  portfolio_id: string;
+  currency: string;
+  baseline_name: string;
+  months: number;
+  scenarios: WhatIfScenarioResult[];
+  definition: MetricDefinition;
+  scope: string;
+};
+
 export type FormState = {
   message: string;
   success?: boolean;
