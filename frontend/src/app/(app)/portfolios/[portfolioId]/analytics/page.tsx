@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { HealthScoreCard } from "@/components/health-score-card";
+import { CreateSnapshotForm } from "@/components/create-snapshot-form";
 import { RebalancingForm } from "@/components/rebalancing-form";
 import { SnapshotValueChart } from "@/components/snapshot-value-chart";
 import { apiRequest, ApiError } from "@/lib/api";
@@ -143,6 +144,15 @@ export default async function AnalyticsPage({
           <button className="focus-ring self-end rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-white" type="submit">Apply</button>
         </form>
       </div>
+
+      <section className="mt-7 rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6" aria-labelledby="snapshot-create-title">
+        <p className="eyebrow">Manual history capture</p>
+        <h2 className="mt-2 text-xl font-semibold" id="snapshot-create-title">Create a daily snapshot</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+          This derives an immutable as-of record from ledger events and prices available on the selected date. Repeating an existing date returns the original snapshot without changing it.
+        </p>
+        <CreateSnapshotForm portfolioID={portfolio.id} />
+      </section>
 
       {daily.length < 2 ? (
         <Unavailable message="Analytics require at least two daily snapshots. Run the daily snapshot job after recording transactions and prices." />
