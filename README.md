@@ -118,6 +118,35 @@ Validate the frontend with:
 make frontend-check
 ```
 
+## Full-stack containers
+
+The default `compose.yaml` intentionally starts only PostgreSQL for local
+development and integration tests. An opt-in overlay builds and starts the
+migration job, Go API, and standalone Next.js frontend:
+
+```bash
+cp .env.example .env
+# Replace JWT_SECRET with a unique value of at least 32 characters.
+make app-up
+make app-logs
+```
+
+Open `http://localhost:3000`. The API health endpoint is available at
+`http://localhost:8080/healthz`. The API waits for migrations, and the frontend
+waits for the API health check. Both application containers run as non-root
+users.
+
+Stop the application stack without deleting the PostgreSQL volume:
+
+```bash
+make app-down
+```
+
+This overlay is a production-like local topology, not a complete production
+deployment. Replace the local database credentials, terminate TLS at a trusted
+proxy, configure backups, and use the deployment scheduler for price and
+snapshot jobs before exposing it publicly.
+
 Run the PostgreSQL-backed integration tests separately:
 
 ```bash
