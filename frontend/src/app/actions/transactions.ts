@@ -108,3 +108,94 @@ export async function createTransactionAction(
   revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}/accounts/${encodeURIComponent(accountID)}`);
   return { message: "Transaction recorded.", success: true };
 }
+
+export async function reverseTransactionAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const portfolioID = String(formData.get("portfolioId") ?? "");
+  const accountID = String(formData.get("accountId") ?? "");
+  const transactionID = String(formData.get("transactionId") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason) return { message: "Enter a reversal reason.", fields: { reason: "Reason is required." } };
+  try {
+    await authenticatedTransactionRequest<Transaction>(
+      `/portfolios/${encodeURIComponent(portfolioID)}/transactions/${encodeURIComponent(transactionID)}/reversals`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    );
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "The transaction could not be reversed." };
+  }
+  revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}/accounts/${encodeURIComponent(accountID)}`);
+  return { message: "Reversal recorded.", success: true };
+}
+
+export async function correctTransactionAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const portfolioID = String(formData.get("portfolioId") ?? "").trim();
+  const accountID = String(formData.get("accountId") ?? "").trim();
+  const transactionID = String(formData.get("transactionId") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  const type = String(formData.get("transactionType") ?? "").trim();
+  const occurredAt = String(formData.get("occurredAt") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const currency = String(formData.get("currency") ?? "").trim().toUpperCase();
+  const assetID = String(formData.get("assetId") ?? "").trim();
+  const quantity = String(formData.get("quantity") ?? "").trim();
+  const amount = String(formData.get("amount") ?? "").trim();
+  const fields: Record<string, string> = {};
+  const supported = new Set(["deposit", "withdrawal", "buy", "sell", "fee", "tax"]);
+  if (!reason) fields.reason = "Reason is required.";
+  if (!supported.has(type)) fields.transactionType = "Choose a valid transaction type.";
+  if (!occurredAt || Number.isNaN(Date.parse(occurredAt))) fields.occurredAt = "Enter a valid date and time.";
+  if (occurredAt && Date.parse(occurredAt) > Date.now()) fields.occurredAt = "The replacement cannot be in the future.";
+  if (!/^[A-Z]{3}$/.test(currency)) fields.currency = "Use a three-letter currency code.";
+  if (!amount || !Number.isFinite(Number(amount)) || Number(amount) <= 0) fields.amount = "Enter an amount greater than zero.";
+  if ((type === "buy" || type === "sell") && !assetID) fields.assetId = "Choose an asset.";
+  if ((type === "buy" || type === "sell") && (!quantity || !Number.isFinite(Number(quantity)) || Number(quantity) <= 0)) fields.quantity = "Enter a quantity greater than zero.";
+  if (Object.keys(fields).length > 0) return { message: "Check the correction fields.", fields };
+
+  const entries: EntryPayload[] = [];
+  if (type === "buy" || type === "sell") {
+    entries.push({ entry_kind: "asset", asset_id: assetID, quantity: `${type === "sell" ? "-" : ""}${quantity}`, currency });
+    entries.push({ entry_kind: "cash", amount: `${type === "buy" ? "-" : ""}${amount}`, currency });
+  } else {
+    const entryKind = type === "fee" || type === "tax" ? type : "cash";
+    entries.push({ entry_kind: entryKind, amount: `${type === "deposit" ? "" : "-"}${amount}`, currency });
+  }
+  const replacement: TransactionPayload = {
+    account_id: accountID,
+    transaction_type: type,
+    occurred_at: new Date(occurredAt).toISOString(),
+    description,
+    idempotency_key: "",
+    entries,
+  };
+  try {
+    await authenticatedTransactionRequest(
+      `/portfolios/${encodeURIComponent(portfolioID)}/transactions/${encodeURIComponent(transactionID)}/corrections`,
+      { method: "POST", body: JSON.stringify({ reason, replacement }) },
+    );
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "The correction could not be recorded." };
+  }
+  revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}/accounts/${encodeURIComponent(accountID)}`);
+  return { message: "Correction and reversal recorded.", success: true };
+}
+
+async function authenticatedTransactionRequest<T = unknown>(path: string, options: RequestInit): Promise<T> {
+  const accessToken = await getAccessToken();
+  if (!accessToken) redirect("/login");
+  try {
+    return await apiRequest<T>(path, { ...options, accessToken });
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) redirect("/login");
+    const auth = await apiRequest<AuthResponse>("/auth/refresh", { method: "POST", body: JSON.stringify({ refresh_token: refreshToken }) });
+    await setSession(auth);
+    return apiRequest<T>(path, { ...options, accessToken: auth.access_token });
+  }
+}

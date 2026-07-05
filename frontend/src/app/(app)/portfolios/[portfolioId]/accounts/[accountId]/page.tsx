@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CreateTransactionForm } from "@/components/create-transaction-form";
+import { TransactionAuditActions } from "@/components/transaction-audit-actions";
 import { apiRequest, ApiError } from "@/lib/api";
 import { getAccessToken, getRefreshToken } from "@/lib/session";
 import type { Account, Asset, Portfolio, Transaction } from "@/lib/types";
@@ -45,6 +46,13 @@ export default async function AccountLedgerPage({
 }) {
   const { portfolioId, accountId } = await params;
   const { portfolio, account, transactions, assets } = await loadAccountLedger(portfolioId, accountId);
+  const supersededTransactionIDs = new Set(
+    transactions.flatMap((transaction) =>
+      [transaction.reverses_transaction_id, transaction.corrects_transaction_id].filter(
+        (id): id is string => Boolean(id),
+      ),
+    ),
+  );
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-10 lg:px-10 lg:py-14">
@@ -113,6 +121,14 @@ export default async function AccountLedgerPage({
                       </div>
                     ))}
                   </div>
+                  <TransactionAuditActions
+                    accountID={account.id}
+                    assets={assets}
+                    currency={account.currency}
+                    portfolioID={portfolio.id}
+                    superseded={supersededTransactionIDs.has(transaction.id)}
+                    transaction={transaction}
+                  />
                 </article>
               ))}
             </div>
