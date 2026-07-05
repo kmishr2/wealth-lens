@@ -21,10 +21,13 @@ export default async function AppLayout({
               <Link className="focus-ring rounded-lg px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)]" href="/assets">Assets</Link>
               <Link className="focus-ring hidden rounded-lg px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] lg:block" href="/benchmarks">Benchmarks</Link>
             </nav>
-            <div className="hidden text-right sm:block">
+            <Link
+              className="focus-ring hidden rounded-lg px-2 py-1 text-right hover:bg-[var(--brand-soft)] sm:block"
+              href="/profile"
+            >
               <p className="text-sm font-semibold">{user.display_name}</p>
               <p className="text-xs text-[var(--muted)]">{user.email}</p>
-            </div>
+            </Link>
             <form action={logoutAction}>
               <button
                 className="focus-ring rounded-xl border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold transition hover:border-[#b9c3bd] hover:bg-[#f8f8f4]"
