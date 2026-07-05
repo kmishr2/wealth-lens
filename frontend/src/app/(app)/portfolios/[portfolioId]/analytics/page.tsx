@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { HealthScoreCard } from "@/components/health-score-card";
 import { RebalancingForm } from "@/components/rebalancing-form";
+import { SnapshotValueChart } from "@/components/snapshot-value-chart";
 import { apiRequest, ApiError } from "@/lib/api";
 import { getAccessToken, getRefreshToken } from "@/lib/session";
 import type {
@@ -147,6 +148,11 @@ export default async function AnalyticsPage({
         <Unavailable message="Analytics require at least two daily snapshots. Run the daily snapshot job after recording transactions and prices." />
       ) : (
         <div className="mt-9 space-y-9">
+          <section aria-labelledby="value-history-title">
+            <SectionHeading eyebrow="Daily immutable snapshots" title="Value history" id="value-history-title" />
+            <SnapshotValueChart snapshots={daily} />
+          </section>
+
           <section aria-labelledby="diversification-title">
             <SectionHeading eyebrow="Current valued assets" title="Concentration & diversification" id="diversification-title" />
             {concentration.data ? (
