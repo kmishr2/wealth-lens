@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CreateAccountForm } from "@/components/create-account-form";
 import { AllocationBars } from "@/components/allocation-bars";
+import { PortfolioSettings } from "@/components/portfolio-settings";
 import { apiRequest, ApiError } from "@/lib/api";
 import { getAccessToken, getRefreshToken } from "@/lib/session";
 import type {
@@ -265,6 +266,14 @@ export default async function PortfolioPage({
           />
         </aside>
       </div>
+
+      <section className="mt-12 border-t border-[var(--line)] pt-10" aria-labelledby="portfolio-settings-title">
+        <p className="eyebrow">Administration</p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]" id="portfolio-settings-title">
+          Portfolio settings
+        </h2>
+        <PortfolioSettings portfolio={portfolio} />
+      </section>
     </main>
   );
 }

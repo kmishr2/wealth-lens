@@ -122,3 +122,50 @@ export async function createAccountAction(
   revalidatePath(portfolioPath);
   return { message: "Account created.", success: true };
 }
+
+export async function updateAccountAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const portfolioID = String(formData.get("portfolioId") ?? "");
+  const accountID = String(formData.get("accountId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const institutionName = String(formData.get("institutionName") ?? "").trim();
+  if (!name) return { message: "Enter an account name.", fields: { name: "Name is required." } };
+  try {
+    await authenticatedAccountRequest<Account>(`/portfolios/${encodeURIComponent(portfolioID)}/accounts/${encodeURIComponent(accountID)}`, {
+      method: "PATCH", body: JSON.stringify({ name, institution_name: institutionName }),
+    });
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "The account could not be updated." };
+  }
+  revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}`);
+  revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}/accounts/${encodeURIComponent(accountID)}`);
+  return { message: "Account updated.", success: true };
+}
+
+export async function deleteAccountAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const portfolioID = String(formData.get("portfolioId") ?? "");
+  const accountID = String(formData.get("accountId") ?? "");
+  const expectedName = String(formData.get("expectedName") ?? "");
+  const confirmation = String(formData.get("confirmation") ?? "");
+  if (confirmation !== expectedName) return { message: "Type the account name exactly to confirm deletion.", fields: { confirmation: "Name does not match." } };
+  try {
+    await authenticatedAccountRequest<unknown>(`/portfolios/${encodeURIComponent(portfolioID)}/accounts/${encodeURIComponent(accountID)}`, { method: "DELETE" });
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "The account could not be deleted." };
+  }
+  revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}`);
+  redirect(`/portfolios/${encodeURIComponent(portfolioID)}`);
+}
+
+async function authenticatedAccountRequest<T>(path: string, options: RequestInit): Promise<T> {
+  const accessToken = await getAccessToken();
+  if (!accessToken) redirect("/login");
+  try { return await apiRequest<T>(path, { ...options, accessToken }); }
+  catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) redirect("/login");
+    const auth = await apiRequest<AuthResponse>("/auth/refresh", { method: "POST", body: JSON.stringify({ refresh_token: refreshToken }) });
+    await setSession(auth);
+    return apiRequest<T>(path, { ...options, accessToken: auth.access_token });
+  }
+}

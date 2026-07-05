@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CreateTransactionForm } from "@/components/create-transaction-form";
+import { AccountSettings } from "@/components/account-settings";
 import { TransactionAuditActions } from "@/components/transaction-audit-actions";
 import { apiRequest, ApiError } from "@/lib/api";
 import { getAccessToken, getRefreshToken } from "@/lib/session";
@@ -144,6 +145,14 @@ export default async function AccountLedgerPage({
           <CreateTransactionForm portfolioID={portfolio.id} accountID={account.id} currency={account.currency} assets={assets} />
         </aside>
       </div>
+
+      <section className="mt-12 border-t border-[var(--line)] pt-10" aria-labelledby="account-settings-title">
+        <p className="eyebrow">Administration</p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]" id="account-settings-title">
+          Account settings
+        </h2>
+        <AccountSettings account={account} />
+      </section>
     </main>
   );
 }

@@ -86,3 +86,48 @@ export async function createPortfolioAction(
   revalidatePath("/dashboard");
   return { message: "Portfolio created.", success: true };
 }
+
+export async function updatePortfolioAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const portfolioID = String(formData.get("portfolioId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  if (!name) return { message: "Enter a portfolio name.", fields: { name: "Name is required." } };
+  try {
+    await authenticatedPortfolioRequest<Portfolio>(`/portfolios/${encodeURIComponent(portfolioID)}`, {
+      method: "PATCH", body: JSON.stringify({ name, description }),
+    });
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "The portfolio could not be updated." };
+  }
+  revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}`);
+  revalidatePath("/dashboard");
+  return { message: "Portfolio updated.", success: true };
+}
+
+export async function deletePortfolioAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const portfolioID = String(formData.get("portfolioId") ?? "");
+  const expectedName = String(formData.get("expectedName") ?? "");
+  const confirmation = String(formData.get("confirmation") ?? "");
+  if (confirmation !== expectedName) return { message: "Type the portfolio name exactly to confirm deletion.", fields: { confirmation: "Name does not match." } };
+  try {
+    await authenticatedPortfolioRequest<unknown>(`/portfolios/${encodeURIComponent(portfolioID)}`, { method: "DELETE" });
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "The portfolio could not be deleted." };
+  }
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+async function authenticatedPortfolioRequest<T>(path: string, options: RequestInit): Promise<T> {
+  const accessToken = await getAccessToken();
+  if (!accessToken) redirect("/login");
+  try { return await apiRequest<T>(path, { ...options, accessToken }); }
+  catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) redirect("/login");
+    const auth = await apiRequest<AuthResponse>("/auth/refresh", { method: "POST", body: JSON.stringify({ refresh_token: refreshToken }) });
+    await setSession(auth);
+    return apiRequest<T>(path, { ...options, accessToken: auth.access_token });
+  }
+}

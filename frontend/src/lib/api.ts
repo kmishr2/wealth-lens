@@ -47,6 +47,10 @@ export async function apiRequest<T>(
     );
   }
 
+  if (response.status === 204 && response.ok) {
+    return undefined as T;
+  }
+
   let envelope: ApiEnvelope<T>;
   try {
     envelope = (await response.json()) as ApiEnvelope<T>;
