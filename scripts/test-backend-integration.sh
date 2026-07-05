@@ -43,7 +43,7 @@ SNAPSHOT_TEST_DATABASE_URL="${TEST_DATABASE_URL}" \
 BACKEND_TEST_DATABASE_URL="${TEST_DATABASE_URL}" \
 GOCACHE="${ROOT_DIR}/backend/.gocache" \
   go test -C backend -tags=integration \
-    ./internal/auth ./internal/prices ./internal/snapshots ./internal/transactions -count=1
+    ./internal/auth ./internal/fixeddeposits ./internal/prices ./internal/snapshots ./internal/transactions -count=1
 
 migrate -path backend/migrations -database "${TEST_DATABASE_URL}" down 1
 migrate -path backend/migrations -database "${TEST_DATABASE_URL}" up

@@ -12,6 +12,7 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/beta"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/config"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/contributions"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/fixeddeposits"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/goals"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/health"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/holdings"
@@ -55,6 +56,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	snapshotRepo := snapshots.NewRepository(db)
 	benchmarkRepo := benchmarks.NewRepository(db)
 	goalRepo := goals.NewRepository(db)
+	fixedDepositRepo := fixeddeposits.NewRepository(db)
 
 	authService := auth.NewService(cfg, authRepo, userRepo)
 	userService := users.NewService(userRepo)
@@ -75,6 +77,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	betaService := beta.NewService(portfolioRepo, benchmarkRepo, snapshotRepo, transactionRepo)
 	projectionService := projections.NewService(portfolioRepo)
 	contributionService := contributions.NewService(portfolioRepo, snapshotRepo, transactionRepo)
+	fixedDepositService := fixeddeposits.NewService(fixedDepositRepo, portfolioRepo, accountRepo, priceRepo)
 
 	authHandler := auth.NewHandler(authService)
 	userHandler := users.NewHandler(userService)
@@ -95,6 +98,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	betaHandler := beta.NewHandler(betaService)
 	projectionHandler := projections.NewHandler(projectionService)
 	contributionHandler := contributions.NewHandler(contributionService)
+	fixedDepositHandler := fixeddeposits.NewHandler(fixedDepositService)
 
 	v1 := router.Group("/api/v1")
 	authRoutes := v1.Group("")
@@ -121,6 +125,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	beta.RegisterRoutes(protected, betaHandler)
 	projections.RegisterRoutes(protected, projectionHandler)
 	contributions.RegisterRoutes(protected, contributionHandler)
+	fixeddeposits.RegisterRoutes(protected, fixedDepositHandler)
 
 	return router, nil
 }

@@ -21,6 +21,7 @@ func (r *Repository) Create(asset *Asset) error {
 func (r *Repository) List(pagination common.Pagination) ([]Asset, error) {
 	var assets []Asset
 	err := r.db.
+		Where("asset_class <> ?", AssetClassFixedDeposit).
 		Order("symbol asc, exchange asc, currency asc").
 		Limit(pagination.Limit).
 		Offset(pagination.Offset).

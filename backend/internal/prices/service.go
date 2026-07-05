@@ -97,6 +97,9 @@ func (s *Service) getAsset(assetID uuid.UUID) (*assets.Asset, error) {
 	if err != nil {
 		return nil, err
 	}
+	if asset.AssetClass == assets.AssetClassFixedDeposit {
+		return nil, common.NotFound("Asset not found")
+	}
 	return asset, nil
 }
 

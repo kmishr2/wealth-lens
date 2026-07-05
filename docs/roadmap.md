@@ -17,6 +17,7 @@ Features:
 - accounts
 - asset management
 - transactions
+- bank-account fixed deposits
 
 ---
 

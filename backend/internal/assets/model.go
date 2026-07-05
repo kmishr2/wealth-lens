@@ -8,18 +8,19 @@ import (
 )
 
 const (
-	AssetClassCash        = "cash"
-	AssetClassEquity      = "equity"
-	AssetClassFund        = "fund"
-	AssetClassBond        = "bond"
-	AssetClassCrypto      = "crypto"
-	AssetClassRealEstate  = "real_estate"
-	AssetClassCommodity   = "commodity"
-	AssetClassAlternative = "alternative"
-	AssetClassOther       = "other"
-	RiskCategoryEquity    = "equity"
-	RiskCategoryDebt      = "debt"
-	RiskCategoryCashOther = "cash_other"
+	AssetClassCash         = "cash"
+	AssetClassEquity       = "equity"
+	AssetClassFund         = "fund"
+	AssetClassBond         = "bond"
+	AssetClassFixedDeposit = "fixed_deposit"
+	AssetClassCrypto       = "crypto"
+	AssetClassRealEstate   = "real_estate"
+	AssetClassCommodity    = "commodity"
+	AssetClassAlternative  = "alternative"
+	AssetClassOther        = "other"
+	RiskCategoryEquity     = "equity"
+	RiskCategoryDebt       = "debt"
+	RiskCategoryCashOther  = "cash_other"
 )
 
 type Asset struct {

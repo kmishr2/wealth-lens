@@ -53,6 +53,25 @@ export type Account = {
   updated_at: string;
 };
 
+export type FixedDeposit = {
+  id: string;
+  portfolio_id: string;
+  account_id: string;
+  asset_id: string;
+  opening_transaction_id: string;
+  name: string;
+  bank_reference: string;
+  principal: string;
+  currency: string;
+  annual_interest_rate: string;
+  start_date: string;
+  maturity_date: string;
+  current_value: string;
+  current_value_at: string;
+  valuation_metadata: MetricDefinition;
+  created_at: string;
+};
+
 export type Asset = {
   id: string;
   symbol: string;

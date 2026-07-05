@@ -34,6 +34,7 @@ The system does NOT:
 - Goals tracking
 - Portfolio health scoring
 - Cash flow tracking
+- Bank-account fixed deposits with explicit immutable valuations
 - Scenario analysis
 - Tax awareness
 
@@ -142,6 +143,16 @@ fails, and exits with a non-zero status if any snapshot could not be created.
 Run it from cron or an external scheduler after all prices for the UTC day have
 been recorded. Use the same command with a historical date for manual
 backfills.
+
+## Fixed Deposits
+
+Fixed deposits can be added only to bank accounts. Creation atomically records
+the contract metadata, a principal cash outflow, one fixed-deposit asset unit,
+and an explicit current-value observation. Later values are appended rather
+than replacing history. Annual ROI is disclosed metadata and is not used to
+estimate accrued or maturity value because compounding and payout conventions
+are not assumed. See `docs/fixed-deposits.md` for the complete requirements and
+validation rules.
 
 ## Weekly Performance Snapshots
 

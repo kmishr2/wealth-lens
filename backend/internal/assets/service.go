@@ -71,9 +71,10 @@ func normalizeRiskCategory(raw *string, assetClass string) (*string, error) {
 		return &value, nil
 	}
 	defaults := map[string]string{
-		AssetClassEquity: RiskCategoryEquity,
-		AssetClassBond:   RiskCategoryDebt,
-		AssetClassCash:   RiskCategoryCashOther,
+		AssetClassEquity:       RiskCategoryEquity,
+		AssetClassBond:         RiskCategoryDebt,
+		AssetClassFixedDeposit: RiskCategoryDebt,
+		AssetClassCash:         RiskCategoryCashOther,
 	}
 	if value, ok := defaults[assetClass]; ok {
 		return &value, nil
@@ -101,6 +102,9 @@ func (s *Service) Get(assetID uuid.UUID) (AssetResponse, error) {
 	}
 	if err != nil {
 		return AssetResponse{}, err
+	}
+	if asset.AssetClass == AssetClassFixedDeposit {
+		return AssetResponse{}, common.NotFound("Asset not found")
 	}
 	return ToResponse(*asset), nil
 }

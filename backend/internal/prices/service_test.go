@@ -165,3 +165,16 @@ func TestGetLatestReturnsNotFoundWhenNoPriceExists(t *testing.T) {
 		t.Fatalf("status = %d, want %d", appErr.Status, http.StatusNotFound)
 	}
 }
+
+func TestPublicPriceServiceHidesFixedDepositAssets(t *testing.T) {
+	service := NewService(
+		&fakePriceRepository{},
+		&fakeAssetReader{asset: &assets.Asset{ID: uuid.New(), AssetClass: assets.AssetClassFixedDeposit, IsActive: true}},
+	)
+
+	_, err := service.GetLatest(uuid.New())
+	var appErr *common.AppError
+	if !errors.As(err, &appErr) || appErr.Status != http.StatusNotFound {
+		t.Fatalf("error = %v, want not found", err)
+	}
+}
