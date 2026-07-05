@@ -39,6 +39,7 @@ type snapshotReaderWriter interface {
 	GetByPortfolioDatePeriod(portfolioID uuid.UUID, snapshotDate time.Time, snapshotPeriod string) (*PortfolioSnapshot, error)
 	GetWeeklyPerformanceByPortfolioWeekEnd(portfolioID uuid.UUID, weekEndDate time.Time) (*WeeklyPerformanceSnapshot, error)
 	ListByPortfolio(portfolioID uuid.UUID, pagination common.Pagination) ([]PortfolioSnapshot, error)
+	ListWeeklyPerformanceByPortfolio(portfolioID uuid.UUID, pagination common.Pagination) ([]WeeklyPerformanceSnapshot, error)
 }
 
 type Service struct {
@@ -155,6 +156,25 @@ func (s *Service) List(userID uuid.UUID, portfolioID uuid.UUID, pagination commo
 		return nil, err
 	}
 	return ToResponses(snapshots)
+}
+
+func (s *Service) ListWeeklyPerformance(userID uuid.UUID, portfolioID uuid.UUID, pagination common.Pagination) ([]WeeklyPerformanceSnapshotResponse, error) {
+	if _, err := s.getOwnedPortfolio(userID, portfolioID); err != nil {
+		return nil, err
+	}
+	records, err := s.snapshotRepo.ListWeeklyPerformanceByPortfolio(portfolioID, pagination)
+	if err != nil {
+		return nil, err
+	}
+	responses := make([]WeeklyPerformanceSnapshotResponse, 0, len(records))
+	for _, record := range records {
+		response, err := ToWeeklyPerformanceResponse(record)
+		if err != nil {
+			return nil, err
+		}
+		responses = append(responses, response)
+	}
+	return responses, nil
 }
 
 func (s *Service) buildWeeklyPerformanceSnapshot(userID uuid.UUID, portfolioID uuid.UUID, weekStartDate time.Time, weekEndDate time.Time) (*WeeklyPerformanceSnapshot, error) {

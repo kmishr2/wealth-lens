@@ -215,6 +215,19 @@ export type PortfolioSnapshot = {
   is_fully_valued: boolean;
 };
 
+export type WeeklyPerformanceSnapshot = {
+  id: string;
+  portfolio_id: string;
+  week_start_date: string;
+  week_end_date: string;
+  currency_returns: CurrencyPerformance[];
+  performance_scope: string;
+  pnl_metadata: MetricDefinition;
+  cagr_metadata: MetricDefinition;
+  xirr_metadata: MetricDefinition;
+  created_at: string;
+};
+
 export type CurrencyPerformance = {
   currency: string;
   beginning_value: string;

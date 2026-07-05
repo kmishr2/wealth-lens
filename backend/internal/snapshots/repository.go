@@ -51,6 +51,17 @@ func (r *Repository) ListByPortfolio(portfolioID uuid.UUID, pagination common.Pa
 	return snapshots, err
 }
 
+func (r *Repository) ListWeeklyPerformanceByPortfolio(portfolioID uuid.UUID, pagination common.Pagination) ([]WeeklyPerformanceSnapshot, error) {
+	var snapshots []WeeklyPerformanceSnapshot
+	err := r.db.
+		Where("portfolio_id = ?", portfolioID).
+		Order("week_end_date desc, created_at desc, id desc").
+		Limit(pagination.Limit).
+		Offset(pagination.Offset).
+		Find(&snapshots).Error
+	return snapshots, err
+}
+
 func (r *Repository) ListByPortfolioDateRange(portfolioID uuid.UUID, startDate time.Time, endDate time.Time, snapshotPeriod string) ([]PortfolioSnapshot, error) {
 	var snapshots []PortfolioSnapshot
 	err := r.db.

@@ -29,15 +29,24 @@ type fakeSnapshotRepo struct {
 	createCalls int
 	createErr   error
 
-	weeklyExisting    *WeeklyPerformanceSnapshot
-	weeklyCreated     *WeeklyPerformanceSnapshot
-	weeklyCreateCalls int
-	weeklyCreateErr   error
+	weeklyExisting        *WeeklyPerformanceSnapshot
+	weeklyCreated         *WeeklyPerformanceSnapshot
+	weeklyCreateCalls     int
+	weeklyCreateErr       error
+	weeklyListed          []WeeklyPerformanceSnapshot
+	weeklyListPortfolioID uuid.UUID
+	weeklyListPagination  common.Pagination
 
 	listPortfolioID uuid.UUID
 	listPagination  common.Pagination
 	listSnapshots   []PortfolioSnapshot
 	listErr         error
+}
+
+func (f *fakeSnapshotRepo) ListWeeklyPerformanceByPortfolio(portfolioID uuid.UUID, pagination common.Pagination) ([]WeeklyPerformanceSnapshot, error) {
+	f.weeklyListPortfolioID = portfolioID
+	f.weeklyListPagination = pagination
+	return f.weeklyListed, nil
 }
 
 func (f *fakeSnapshotRepo) Create(snapshot *PortfolioSnapshot) error {
@@ -473,6 +482,32 @@ func TestListReturnsOwnedPortfolioSnapshotsNewestFirstFromRepository(t *testing.
 	}
 	if len(responses) != 2 || responses[0].SnapshotDate != "2026-01-16" || responses[1].SnapshotDate != "2026-01-15" {
 		t.Fatalf("responses = %+v, want two decoded snapshots in repository order", responses)
+	}
+}
+
+func TestListWeeklyPerformanceReturnsDecodedStoredMetrics(t *testing.T) {
+	userID, portfolioID := uuid.New(), uuid.New()
+	stored := storedWeeklyPerformanceSnapshot(t, userID, portfolioID, "2026-01-04", "2026-01-11")
+	repo := &fakeSnapshotRepo{weeklyListed: []WeeklyPerformanceSnapshot{stored}}
+	service := NewService(
+		repo,
+		&fakeLedgerAsOfReader{},
+		&fakeLatestPriceAsOfReader{},
+		&fakePortfolioReader{portfolio: &portfolios.Portfolio{ID: portfolioID, UserID: userID}},
+	)
+
+	responses, err := service.ListWeeklyPerformance(userID, portfolioID, common.Pagination{Limit: 10, Offset: 20})
+	if err != nil {
+		t.Fatalf("ListWeeklyPerformance returned error: %v", err)
+	}
+	if repo.weeklyListPortfolioID != portfolioID || repo.weeklyListPagination.Limit != 10 || repo.weeklyListPagination.Offset != 20 {
+		t.Fatalf("weekly list scope=%s pagination=%+v", repo.weeklyListPortfolioID, repo.weeklyListPagination)
+	}
+	if len(responses) != 1 || responses[0].WeekEndDate != "2026-01-11" || len(responses[0].CurrencyReturns) != 1 {
+		t.Fatalf("responses = %+v", responses)
+	}
+	if responses[0].PnLMetadata.Formula == "" || responses[0].XIRRMetadata.Explanation == "" {
+		t.Fatal("stored weekly metric metadata was not decoded")
 	}
 }
 

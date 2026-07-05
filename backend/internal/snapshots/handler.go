@@ -51,6 +51,20 @@ func (h *Handler) List(c *gin.Context) {
 	common.RespondOK(c, http.StatusOK, snapshots)
 }
 
+func (h *Handler) ListWeeklyPerformance(c *gin.Context) {
+	userID, portfolioID, ok := parseUserAndPortfolio(c)
+	if !ok {
+		return
+	}
+
+	snapshots, err := h.service.ListWeeklyPerformance(userID, portfolioID, common.ParsePagination(c))
+	if err != nil {
+		common.RespondError(c, err)
+		return
+	}
+	common.RespondOK(c, http.StatusOK, snapshots)
+}
+
 func parseUserAndPortfolio(c *gin.Context) (uuid.UUID, uuid.UUID, bool) {
 	userID, err := middleware.CurrentUserID(c)
 	if err != nil {

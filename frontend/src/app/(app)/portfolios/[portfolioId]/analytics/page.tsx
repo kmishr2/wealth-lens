@@ -20,6 +20,7 @@ import type {
   PortfolioPerformance,
   PortfolioRisk,
   PortfolioSnapshot,
+  WeeklyPerformanceSnapshot,
 } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Portfolio analytics" };
@@ -36,9 +37,10 @@ async function loadAnalytics(
   if (!accessToken) redirect("/login");
   const encodedID = encodeURIComponent(portfolioID);
   try {
-    const [portfolio, snapshots, benchmarks] = await Promise.all([
+    const [portfolio, snapshots, weeklySnapshots, benchmarks] = await Promise.all([
       apiRequest<Portfolio>(`/portfolios/${encodedID}`, { accessToken }),
       apiRequest<PortfolioSnapshot[]>(`/portfolios/${encodedID}/snapshots?limit=100`, { accessToken }),
+      apiRequest<WeeklyPerformanceSnapshot[]>(`/portfolios/${encodedID}/weekly-performance-snapshots?limit=12`, { accessToken }),
       apiRequest<Benchmark[]>("/benchmarks?limit=100", { accessToken }),
     ]);
     const daily = snapshots.filter((snapshot) => snapshot.snapshot_period === "daily");
@@ -55,7 +57,7 @@ async function loadAnalytics(
     ]);
 
     if (!startDate || !endDate || startDate >= endDate) {
-      return { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, allocation, concentration, alerts, performance: emptyMetric<PortfolioPerformance>(), contribution: emptyMetric<ContributionAnalysis>(), risk: emptyMetric<PortfolioRisk>(), health: emptyMetric<PortfolioHealth>(), comparison: emptyMetric<BenchmarkComparison>(), beta: emptyMetric<BenchmarkBeta>() };
+      return { portfolio, daily, weeklySnapshots, benchmarks, selectedBenchmark, startDate, endDate, allocation, concentration, alerts, performance: emptyMetric<PortfolioPerformance>(), contribution: emptyMetric<ContributionAnalysis>(), risk: emptyMetric<PortfolioRisk>(), health: emptyMetric<PortfolioHealth>(), comparison: emptyMetric<BenchmarkComparison>(), beta: emptyMetric<BenchmarkBeta>() };
     }
 
     const query = `start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`;
@@ -78,7 +80,7 @@ async function loadAnalytics(
         metricRequest<BenchmarkBeta>(`${benchmarkPath}/beta?${benchmarkQuery}`, accessToken),
       ]);
     }
-    return { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, allocation, concentration, alerts, performance, contribution, risk, health, comparison, beta };
+    return { portfolio, daily, weeklySnapshots, benchmarks, selectedBenchmark, startDate, endDate, allocation, concentration, alerts, performance, contribution, risk, health, comparison, beta };
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       if (await getRefreshToken()) redirect(`/auth/refresh?next=${encodeURIComponent(`/portfolios/${portfolioID}/analytics`)}`);
@@ -111,7 +113,7 @@ export default async function AnalyticsPage({
 }) {
   const { portfolioId } = await params;
   const requested = await searchParams;
-  const { portfolio, daily, benchmarks, selectedBenchmark, startDate, endDate, allocation, concentration, alerts, performance, contribution, risk, health, comparison, beta } = await loadAnalytics(
+  const { portfolio, daily, weeklySnapshots, benchmarks, selectedBenchmark, startDate, endDate, allocation, concentration, alerts, performance, contribution, risk, health, comparison, beta } = await loadAnalytics(
     portfolioId,
     requested.start,
     requested.end,
@@ -161,6 +163,35 @@ export default async function AnalyticsPage({
           <section aria-labelledby="value-history-title">
             <SectionHeading eyebrow="Daily immutable snapshots" title="Value history" id="value-history-title" />
             <SnapshotValueChart snapshots={daily} />
+          </section>
+
+          <section aria-labelledby="weekly-performance-title">
+            <SectionHeading eyebrow="Stored weekly records" title="Weekly performance history" id="weekly-performance-title" />
+            {weeklySnapshots.length === 0 ? (
+              <Unavailable message="No weekly performance snapshots exist yet. Run the Sunday weekly snapshot job after both boundary daily snapshots are available." />
+            ) : (
+              <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                {weeklySnapshots.map((snapshot) => (
+                  <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6" key={snapshot.id}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div><p className="eyebrow">Week ending</p><h3 className="mt-2 text-xl font-semibold">{formatDate(snapshot.week_end_date)}</h3></div>
+                      <span className="text-xs text-[var(--muted)]">From {formatDate(snapshot.week_start_date)}</span>
+                    </div>
+                    <div className="mt-5 space-y-4 border-t border-[var(--line)] pt-4">
+                      {snapshot.currency_returns.map((item) => (
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4" key={`${snapshot.id}-${item.currency}`}>
+                          <SmallMetric label={`P&L (${item.currency})`} value={formatMoney(item.profit_loss, item.currency)} />
+                          <SmallMetric label="CAGR" value={formatPercent(item.cagr)} />
+                          <SmallMetric label="XIRR" value={formatPercent(item.xirr)} />
+                          <SmallMetric label="External flow" value={formatMoney(item.net_external_cash_flow, item.currency)} />
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-5 text-xs leading-5 text-[var(--muted)]">{snapshot.performance_scope}</p>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
 
           <section aria-labelledby="diversification-title">
@@ -340,4 +371,8 @@ function formatPercent(value: string) {
 
 function formatNumber(value: string) {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(Number(value));
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
 }
