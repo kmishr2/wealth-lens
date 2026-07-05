@@ -77,9 +77,14 @@ export default async function AccountLedgerPage({
             {account.institution_name || "Institution not specified"}. Every correction is recorded as a new audit event; historical entries are never edited.
           </p>
         </div>
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-4 sm:min-w-44">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Events</p>
-          <p className="mt-1 text-3xl font-semibold tracking-[-0.04em]">{transactions.length}</p>
+        <div className="flex flex-wrap items-end gap-3">
+          <a className="focus-ring rounded-xl border border-[var(--line)] bg-white px-4 py-3 text-sm font-semibold text-[var(--brand)]" href={`/portfolios/${portfolio.id}/exports/transactions?account=${encodeURIComponent(account.id)}`}>
+            Export account ledger
+          </a>
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-4 sm:min-w-44">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Events</p>
+            <p className="mt-1 text-3xl font-semibold tracking-[-0.04em]">{transactions.length}</p>
+          </div>
         </div>
       </div>
 
