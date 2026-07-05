@@ -22,13 +22,13 @@ async function loadPlanning(portfolioID: string) {
     const snapshots = await Promise.all(
       goals.map(async (goal) => {
         const records = await apiRequest<MonthlyGoalSnapshot[]>(
-          `/portfolios/${encodedID}/goals/${encodeURIComponent(goal.id)}/monthly-snapshots?limit=1`,
+          `/portfolios/${encodedID}/goals/${encodeURIComponent(goal.id)}/monthly-snapshots?limit=12`,
           { accessToken },
         );
-        return [goal.id, records[0] ?? null] as const;
+        return [goal.id, records] as const;
       }),
     );
-    return { portfolio, goals, latestByGoal: new Map(snapshots) };
+    return { portfolio, goals, snapshotsByGoal: new Map(snapshots) };
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       if (await getRefreshToken()) redirect(`/auth/refresh?next=${encodeURIComponent(`/portfolios/${portfolioID}/planning`)}`);
@@ -41,7 +41,7 @@ async function loadPlanning(portfolioID: string) {
 
 export default async function PlanningPage({ params }: { params: Promise<{ portfolioId: string }> }) {
   const { portfolioId } = await params;
-  const { portfolio, goals, latestByGoal } = await loadPlanning(portfolioId);
+  const { portfolio, goals, snapshotsByGoal } = await loadPlanning(portfolioId);
   return (
     <main className="mx-auto max-w-7xl px-6 py-10 lg:px-10 lg:py-14">
       <Link className="focus-ring inline-flex rounded-lg text-sm font-semibold text-[var(--brand)] hover:underline" href={`/portfolios/${portfolio.id}`}>
@@ -63,7 +63,7 @@ export default async function PlanningPage({ params }: { params: Promise<{ portf
               <div className="rounded-3xl border border-dashed border-[#bdc6c0] bg-[var(--surface)] p-8 text-[var(--muted)]">No goals yet. Create a target to begin monthly progress tracking.</div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
-                {goals.map((goal) => <GoalCard key={goal.id} goal={goal} portfolioID={portfolio.id} snapshot={latestByGoal.get(goal.id) ?? null} />)}
+                {goals.map((goal) => <GoalCard key={goal.id} goal={goal} portfolioID={portfolio.id} snapshots={snapshotsByGoal.get(goal.id) ?? []} />)}
               </div>
             )}
           </div>
@@ -85,7 +85,8 @@ export default async function PlanningPage({ params }: { params: Promise<{ portf
   );
 }
 
-function GoalCard({ goal, portfolioID, snapshot }: { goal: Goal; portfolioID: string; snapshot: MonthlyGoalSnapshot | null }) {
+function GoalCard({ goal, portfolioID, snapshots }: { goal: Goal; portfolioID: string; snapshots: MonthlyGoalSnapshot[] }) {
+  const snapshot = snapshots[0] ?? null;
   const progress = snapshot ? Math.max(0, Math.min(100, Number(snapshot.progress_percentage))) : 0;
   return (
     <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6">
@@ -95,6 +96,26 @@ function GoalCard({ goal, portfolioID, snapshot }: { goal: Goal; portfolioID: st
         <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-[#e4e7e1]"><div className="h-full rounded-full bg-[var(--brand)]" style={{ width: `${progress}%` }} /></div>
         <div className="mt-3 flex justify-between text-xs text-[var(--muted)]"><span>{formatPercent(snapshot.progress_percentage)} funded</span><span>{money(snapshot.remaining_amount, snapshot.currency)} remaining</span></div>
         <p className="mt-4 border-t border-[var(--line)] pt-4 text-sm text-[var(--muted)]">Required monthly contribution: <strong className="text-[var(--ink)]">{money(snapshot.required_monthly_contribution, snapshot.currency)}</strong></p>
+        <details className="mt-4 border-t border-[var(--line)] pt-4">
+          <summary className="cursor-pointer text-sm font-semibold text-[var(--brand)]">View monthly history ({snapshots.length})</summary>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-130 text-left text-xs">
+              <thead className="uppercase tracking-wide text-[var(--muted)]"><tr><th className="pb-2">Month end</th><th className="pb-2">Current value</th><th className="pb-2">Progress</th><th className="pb-2">Remaining</th><th className="pb-2">Required monthly</th></tr></thead>
+              <tbody className="divide-y divide-[var(--line)]">
+                {snapshots.map((record) => (
+                  <tr key={record.id}>
+                    <td className="py-3 font-semibold">{formatDate(record.snapshot_month_end)}</td>
+                    <td className="py-3">{money(record.current_value, record.currency)}</td>
+                    <td className="py-3">{formatPercent(record.progress_percentage)}</td>
+                    <td className="py-3">{money(record.remaining_amount, record.currency)}</td>
+                    <td className="py-3">{money(record.required_monthly_contribution, record.currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-[var(--muted)]">Stored month-end records are immutable. Goal edits affect future snapshots only.</p>
+        </details>
       </> : <p className="mt-5 rounded-xl bg-[#f1f2ed] p-3 text-sm text-[var(--muted)]">Monthly progress appears after the month-end snapshot job runs.</p>}
       <GoalActions goal={goal} portfolioID={portfolioID} />
     </article>
@@ -103,3 +124,4 @@ function GoalCard({ goal, portfolioID, snapshot }: { goal: Goal; portfolioID: st
 
 function money(value: string, currency: string) { return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value)); }
 function formatPercent(value: string) { return `${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(Number(value))}%`; }
+function formatDate(value: string) { return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`)); }
