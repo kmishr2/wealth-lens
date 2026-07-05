@@ -1,6 +1,7 @@
 package transactions
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -8,6 +9,8 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/common"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/middleware"
 )
+
+const maxCSVImportBytes = 2 << 20
 
 type Handler struct {
 	service *Service
@@ -35,6 +38,41 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 	common.RespondOK(c, http.StatusCreated, transaction)
+}
+
+func (h *Handler) ImportCSV(c *gin.Context) {
+	userID, portfolioID, ok := parseUserAndPortfolio(c)
+	if !ok {
+		return
+	}
+	accountID, err := uuid.Parse(c.Param("accountId"))
+	if err != nil {
+		common.RespondError(c, common.NotFound("Account not found"))
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxCSVImportBytes)
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		common.RespondError(c, common.BadRequest("CSV file is required"))
+		return
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		common.RespondError(c, common.BadRequest("CSV file could not be opened"))
+		return
+	}
+	defer file.Close()
+	response, err := h.service.ImportCSV(userID, portfolioID, accountID, file)
+	if err != nil {
+		common.RespondError(c, err)
+		return
+	}
+	if response.RowsImported == 0 {
+		common.RespondError(c, common.BadRequest("CSV file contains no transaction rows"))
+		return
+	}
+	c.Header("X-Imported-Rows", fmt.Sprint(response.RowsImported))
+	common.RespondOK(c, http.StatusCreated, response)
 }
 
 func (h *Handler) List(c *gin.Context) {

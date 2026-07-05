@@ -31,6 +31,17 @@ func (r *Repository) CreateWithDB(db *gorm.DB, transaction *Transaction) error {
 	return db.Create(transaction).Error
 }
 
+func (r *Repository) CreateMany(transactions []*Transaction) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, transaction := range transactions {
+			if err := tx.Create(transaction).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func (r *Repository) GetOwned(userID uuid.UUID, portfolioID uuid.UUID, transactionID uuid.UUID) (*Transaction, error) {
 	var transaction Transaction
 	err := r.db.

@@ -25,7 +25,7 @@ export async function apiRequest<T>(
   const { accessToken, headers, ...requestOptions } = options;
   const requestHeaders = new Headers(headers);
   requestHeaders.set("Accept", "application/json");
-  if (requestOptions.body) {
+  if (typeof requestOptions.body === "string") {
     requestHeaders.set("Content-Type", "application/json");
   }
   if (accessToken) {

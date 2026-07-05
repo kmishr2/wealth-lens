@@ -6,6 +6,7 @@ import { CreateFixedDepositForm } from "@/components/create-fixed-deposit-form";
 import { FixedDepositValueForm } from "@/components/fixed-deposit-value-form";
 import { AccountSettings } from "@/components/account-settings";
 import { TransactionAuditActions } from "@/components/transaction-audit-actions";
+import { TransactionCSVImportForm } from "@/components/transaction-csv-import-form";
 import { apiRequest, ApiError } from "@/lib/api";
 import { getAccessToken, getRefreshToken } from "@/lib/session";
 import type { Account, Asset, FixedDeposit, Portfolio, Transaction } from "@/lib/types";
@@ -201,6 +202,19 @@ export default async function AccountLedgerPage({
           <CreateTransactionForm portfolioID={portfolio.id} accountID={account.id} currency={account.currency} assets={assets} />
         </aside>
       </div>
+
+      <section className="mt-12 border-t border-[var(--line)] pt-10" aria-labelledby="csv-import-title">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_430px]">
+          <div>
+            <p className="eyebrow">Atomic bulk entry</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]" id="csv-import-title">Import transaction CSV</h2>
+            <p className="mt-3 max-w-2xl leading-7 text-[var(--muted)]">Import deposits, withdrawals, purchases, sales, fees, and taxes for this account. Validation and ledger construction happen on the backend; one invalid row rejects the full file.</p>
+          </div>
+          <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow)]">
+            <TransactionCSVImportForm accountID={account.id} portfolioID={portfolio.id} />
+          </div>
+        </div>
+      </section>
 
       <section className="mt-12 border-t border-[var(--line)] pt-10" aria-labelledby="account-settings-title">
         <p className="eyebrow">Administration</p>

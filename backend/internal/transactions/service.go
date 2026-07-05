@@ -204,6 +204,9 @@ func (s *Service) buildTransaction(userID uuid.UUID, portfolioID uuid.UUID, req 
 		if err != nil {
 			return nil, err
 		}
+		if entry.Currency != account.Currency {
+			return nil, common.BadRequest(fmt.Sprintf("Entry currency must match account currency at index %d", idx))
+		}
 		entries = append(entries, entry)
 	}
 
@@ -261,6 +264,9 @@ func (s *Service) buildEntry(index int, req TransactionEntryRequest) (Transactio
 		}
 		if !asset.IsActive {
 			return TransactionEntry{}, common.BadRequest(fmt.Sprintf("Asset is inactive at index %d", index))
+		}
+		if asset.Currency != currency {
+			return TransactionEntry{}, common.BadRequest(fmt.Sprintf("Asset currency must match entry currency at index %d", index))
 		}
 
 		entry.AssetID = req.AssetID

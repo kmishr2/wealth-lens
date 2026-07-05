@@ -185,6 +185,34 @@ export async function correctTransactionAction(
   return { message: "Correction and reversal recorded.", success: true };
 }
 
+export async function importTransactionsCSVAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const portfolioID = String(formData.get("portfolioId") ?? "").trim();
+  const accountID = String(formData.get("accountId") ?? "").trim();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { message: "Choose a CSV file.", fields: { file: "CSV file is required." } };
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    return { message: "CSV file cannot exceed 2 MiB.", fields: { file: "File is too large." } };
+  }
+  const upload = new FormData();
+  upload.set("file", file);
+  try {
+    const result = await authenticatedTransactionRequest<{ rows_imported: number }>(
+      `/portfolios/${encodeURIComponent(portfolioID)}/accounts/${encodeURIComponent(accountID)}/transaction-imports`,
+      { method: "POST", body: upload },
+    );
+    revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}`);
+    revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}/accounts/${encodeURIComponent(accountID)}`);
+    return { message: `${result.rows_imported} transaction${result.rows_imported === 1 ? "" : "s"} imported.`, success: true };
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "The CSV file could not be imported." };
+  }
+}
+
 async function authenticatedTransactionRequest<T = unknown>(path: string, options: RequestInit): Promise<T> {
   const accessToken = await getAccessToken();
   if (!accessToken) redirect("/login");

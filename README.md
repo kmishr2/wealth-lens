@@ -35,6 +35,7 @@ The system does NOT:
 - Portfolio health scoring
 - Cash flow tracking
 - Bank-account fixed deposits with explicit immutable valuations
+- Atomic account transaction CSV imports
 - Scenario analysis
 - Tax awareness
 
@@ -153,6 +154,13 @@ than replacing history. Annual ROI is disclosed metadata and is not used to
 estimate accrued or maturity value because compounding and payout conventions
 are not assumed. See `docs/fixed-deposits.md` for the complete requirements and
 validation rules.
+
+## Transaction CSV Imports
+
+Account ledgers accept CSV files containing up to 1,000 deposits, withdrawals,
+purchases, sales, fees, or taxes. The backend validates every row and writes the
+entire file in one database transaction; any failure rolls back all rows. See
+`docs/transaction-csv-import.md` for the exact header and validation rules.
 
 ## Weekly Performance Snapshots
 

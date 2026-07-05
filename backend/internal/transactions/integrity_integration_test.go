@@ -7,10 +7,60 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/database"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/transactions"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
+
+func TestCreateManyRollsBackEntireImport(t *testing.T) {
+	databaseURL := os.Getenv("BACKEND_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("BACKEND_TEST_DATABASE_URL is required")
+	}
+	assertIsolatedTestDatabase(t, databaseURL)
+	db, err := database.Connect(databaseURL)
+	if err != nil {
+		t.Fatalf("connect test database: %v", err)
+	}
+	db = db.Begin()
+	if db.Error != nil {
+		t.Fatalf("begin fixture transaction: %v", db.Error)
+	}
+	defer db.Rollback()
+	seedIntegrityFixture(t, db)
+	validID := uuid.New()
+	amount := decimal.NewFromInt(100)
+	makeTransaction := func(id uuid.UUID, accountID uuid.UUID) *transactions.Transaction {
+		return &transactions.Transaction{
+			ID:              id,
+			PortfolioID:     uuid.MustParse("10000000-0000-0000-0000-000000000011"),
+			AccountID:       accountID,
+			TransactionType: transactions.TransactionTypeDeposit,
+			OccurredAt:      time.Date(2026, 1, 12, 10, 0, 0, 0, time.UTC),
+			CreatedByUserID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+			Entries:         []transactions.TransactionEntry{{EntryKind: transactions.EntryKindCash, Amount: &amount, Currency: "USD"}},
+		}
+	}
+	repo := transactions.NewRepository(db)
+	err = repo.CreateMany([]*transactions.Transaction{
+		makeTransaction(validID, uuid.MustParse("10000000-0000-0000-0000-000000000021")),
+		makeTransaction(uuid.New(), uuid.New()),
+	})
+	if err == nil {
+		t.Fatal("CreateMany succeeded, want foreign-key failure")
+	}
+	var count int64
+	if err := db.Table("transactions").Where("id = ?", validID).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("first imported transaction count = %d, want rollback", count)
+	}
+}
 
 func TestLedgerRelationalIntegrity(t *testing.T) {
 	databaseURL := os.Getenv("BACKEND_TEST_DATABASE_URL")
