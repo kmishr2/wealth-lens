@@ -247,7 +247,10 @@ export default async function AnalyticsPage({
           </section>
 
           <section aria-labelledby="benchmark-title">
-            <SectionHeading eyebrow="Explicit reference series" title="Benchmark comparison" id="benchmark-title" />
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <SectionHeading eyebrow="Explicit reference series" title="Benchmark comparison" id="benchmark-title" />
+              <Link className="focus-ring rounded-lg text-sm font-semibold text-[var(--brand)] hover:underline" href="/benchmarks">Manage benchmark data →</Link>
+            </div>
             {comparison.data ? (
               <div className="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                 <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface-strong)] p-6">

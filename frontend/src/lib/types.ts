@@ -346,6 +346,16 @@ export type Benchmark = {
   created_at: string;
 };
 
+export type BenchmarkObservation = {
+  id: string;
+  benchmark_id: string;
+  observation_date: string;
+  value: string;
+  source: string;
+  note: string;
+  created_at: string;
+};
+
 export type BenchmarkComparison = {
   portfolio_id: string;
   benchmark_id: string;
