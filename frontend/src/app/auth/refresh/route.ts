@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiRequest, ApiError } from "@/lib/api";
+import { safeNextPath } from "@/lib/navigation";
 import {
   ACCESS_COOKIE,
   REFRESH_COOKIE,
   getRefreshToken,
 } from "@/lib/session";
 import type { AuthResponse } from "@/lib/types";
-
-function safeNextPath(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/dashboard";
-  }
-  return value;
-}
 
 export async function GET(request: NextRequest) {
   const destination = safeNextPath(request.nextUrl.searchParams.get("next"));

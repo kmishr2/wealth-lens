@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { apiRequest, ApiError } from "@/lib/api";
 import { getAccessToken, getRefreshToken, setSession } from "@/lib/session";
+import { csvCell, safeFilename, safeSpreadsheetText } from "@/lib/csv";
 import type { Account, Asset, AuthResponse, Portfolio, Transaction } from "@/lib/types";
 
 const pageSize = 200;
@@ -155,21 +156,4 @@ function buildTransactionCSV(
   return [headers, ...rows]
     .map((row) => row.map((value) => csvCell(value)).join(","))
     .join("\r\n");
-}
-
-function csvCell(value: string) {
-  return `"${value.replaceAll('"', '""')}"`;
-}
-
-function safeSpreadsheetText(value: string) {
-  return /^[=+\-@]/.test(value) ? `'${value}` : value;
-}
-
-function safeFilename(value: string) {
-  const normalized = value
-    .normalize("NFKD")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase();
-  return normalized || "portfolio";
 }
