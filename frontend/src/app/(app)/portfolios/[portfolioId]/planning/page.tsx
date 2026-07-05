@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CreateGoalForm } from "@/components/create-goal-form";
+import { GoalActions } from "@/components/goal-actions";
 import { SIPCalculator, WhatIfCalculator } from "@/components/planning-calculators";
 import { apiRequest, ApiError } from "@/lib/api";
 import { getAccessToken, getRefreshToken } from "@/lib/session";
@@ -62,7 +63,7 @@ export default async function PlanningPage({ params }: { params: Promise<{ portf
               <div className="rounded-3xl border border-dashed border-[#bdc6c0] bg-[var(--surface)] p-8 text-[var(--muted)]">No goals yet. Create a target to begin monthly progress tracking.</div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
-                {goals.map((goal) => <GoalCard key={goal.id} goal={goal} snapshot={latestByGoal.get(goal.id) ?? null} />)}
+                {goals.map((goal) => <GoalCard key={goal.id} goal={goal} portfolioID={portfolio.id} snapshot={latestByGoal.get(goal.id) ?? null} />)}
               </div>
             )}
           </div>
@@ -84,7 +85,7 @@ export default async function PlanningPage({ params }: { params: Promise<{ portf
   );
 }
 
-function GoalCard({ goal, snapshot }: { goal: Goal; snapshot: MonthlyGoalSnapshot | null }) {
+function GoalCard({ goal, portfolioID, snapshot }: { goal: Goal; portfolioID: string; snapshot: MonthlyGoalSnapshot | null }) {
   const progress = snapshot ? Math.max(0, Math.min(100, Number(snapshot.progress_percentage))) : 0;
   return (
     <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6">
@@ -95,6 +96,7 @@ function GoalCard({ goal, snapshot }: { goal: Goal; snapshot: MonthlyGoalSnapsho
         <div className="mt-3 flex justify-between text-xs text-[var(--muted)]"><span>{formatPercent(snapshot.progress_percentage)} funded</span><span>{money(snapshot.remaining_amount, snapshot.currency)} remaining</span></div>
         <p className="mt-4 border-t border-[var(--line)] pt-4 text-sm text-[var(--muted)]">Required monthly contribution: <strong className="text-[var(--ink)]">{money(snapshot.required_monthly_contribution, snapshot.currency)}</strong></p>
       </> : <p className="mt-5 rounded-xl bg-[#f1f2ed] p-3 text-sm text-[var(--muted)]">Monthly progress appears after the month-end snapshot job runs.</p>}
+      <GoalActions goal={goal} portfolioID={portfolioID} />
     </article>
   );
 }
