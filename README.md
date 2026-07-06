@@ -38,6 +38,7 @@ The system does NOT:
 - Atomic account transaction CSV imports
 - Scenario analysis
 - Tax awareness
+- Deterministic in-app notices
 
 ## Architecture Principles
 
@@ -183,6 +184,14 @@ than replacing history. Annual ROI is disclosed metadata and is not used to
 estimate accrued or maturity value because compounding and payout conventions
 are not assumed. See `docs/fixed-deposits.md` for the complete requirements and
 validation rules.
+
+## Notices
+
+`GET /api/v1/notifications` derives current in-app notices directly from source
+records. The first rule reports open fixed deposits within 30 calendar days of
+maturity and deposits that have matured without a recorded closure. Every
+notice exposes its trigger rule and source links; it contains no prediction or
+recommendation. See `docs/notifications.md` for the exact status bands.
 
 ## Transaction CSV Imports
 

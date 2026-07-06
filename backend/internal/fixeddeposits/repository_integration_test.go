@@ -12,6 +12,7 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/assets"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/database"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/fixeddeposits"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/notifications"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/portfolios"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/prices"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/transactions"
@@ -106,6 +107,11 @@ func TestCreatePersistsCompleteLedgerBackedBundle(t *testing.T) {
 	}); err == nil || err.Error() != "Fixed deposit ledger events cannot be reversed or corrected directly" {
 		t.Fatalf("opening transaction reversal error = %v", err)
 	}
+	notificationService := notifications.NewService(notifications.NewRepository(db))
+	reminders, err := notificationService.List(userID, time.Date(2026, 12, 15, 0, 0, 0, 0, time.UTC))
+	if err != nil || len(reminders) != 1 || reminders[0].EntityID != response.ID || reminders[0].Status != "upcoming" {
+		t.Fatalf("maturity reminders = %+v, err = %v", reminders, err)
+	}
 
 	proceeds := decimal.RequireFromString("263100")
 	closed, err := service.Close(userID, portfolioID, accountID, response.ID, fixeddeposits.CloseRequest{
@@ -128,5 +134,9 @@ func TestCreatePersistsCompleteLedgerBackedBundle(t *testing.T) {
 		Reason: "should be rejected", OccurredAt: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC),
 	}); err == nil || err.Error() != "Fixed deposit ledger events cannot be reversed or corrected directly" {
 		t.Fatalf("closing transaction reversal error = %v", err)
+	}
+	reminders, err = notificationService.List(userID, time.Date(2026, 12, 15, 0, 0, 0, 0, time.UTC))
+	if err != nil || len(reminders) != 0 {
+		t.Fatalf("closed-deposit reminders = %+v, err = %v", reminders, err)
 	}
 }

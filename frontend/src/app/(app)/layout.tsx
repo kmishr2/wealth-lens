@@ -20,6 +20,7 @@ export default async function AppLayout({
               <Link className="focus-ring hidden rounded-lg px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] sm:block" href="/dashboard">Portfolios</Link>
               <Link className="focus-ring rounded-lg px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)]" href="/assets">Assets</Link>
               <Link className="focus-ring hidden rounded-lg px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] lg:block" href="/benchmarks">Benchmarks</Link>
+              <Link className="focus-ring rounded-lg px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)]" href="/notifications">Notices</Link>
             </nav>
             <Link
               className="focus-ring hidden rounded-lg px-2 py-1 text-right hover:bg-[var(--brand-soft)] sm:block"

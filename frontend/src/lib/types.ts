@@ -78,6 +78,24 @@ export type FixedDeposit = {
   closing_transaction_id?: string;
 };
 
+export type Notification = {
+  id: string;
+  kind: "fixed_deposit_maturity";
+  status: "upcoming" | "urgent" | "due" | "overdue";
+  title: string;
+  explanation: string;
+  trigger_rule: string;
+  as_of_date: string;
+  event_date: string;
+  days_until_event: number;
+  portfolio_id: string;
+  portfolio_name: string;
+  account_id: string;
+  account_name: string;
+  entity_id: string;
+  entity_type: "fixed_deposit";
+};
+
 export type Asset = {
   id: string;
   symbol: string;

@@ -17,6 +17,7 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/health"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/holdings"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/middleware"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/notifications"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/performance"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/portfolios"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/prices"
@@ -57,6 +58,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	benchmarkRepo := benchmarks.NewRepository(db)
 	goalRepo := goals.NewRepository(db)
 	fixedDepositRepo := fixeddeposits.NewRepository(db)
+	notificationRepo := notifications.NewRepository(db)
 
 	authService := auth.NewService(cfg, authRepo, userRepo)
 	userService := users.NewService(userRepo)
@@ -78,6 +80,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	projectionService := projections.NewService(portfolioRepo)
 	contributionService := contributions.NewService(portfolioRepo, snapshotRepo, transactionRepo)
 	fixedDepositService := fixeddeposits.NewService(fixedDepositRepo, portfolioRepo, accountRepo, priceRepo)
+	notificationService := notifications.NewService(notificationRepo)
 
 	authHandler := auth.NewHandler(authService)
 	userHandler := users.NewHandler(userService)
@@ -99,6 +102,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	projectionHandler := projections.NewHandler(projectionService)
 	contributionHandler := contributions.NewHandler(contributionService)
 	fixedDepositHandler := fixeddeposits.NewHandler(fixedDepositService)
+	notificationHandler := notifications.NewHandler(notificationService)
 
 	v1 := router.Group("/api/v1")
 	authRoutes := v1.Group("")
@@ -126,6 +130,7 @@ func New(cfg config.Config, db *gorm.DB) (*gin.Engine, error) {
 	projections.RegisterRoutes(protected, projectionHandler)
 	contributions.RegisterRoutes(protected, contributionHandler)
 	fixeddeposits.RegisterRoutes(protected, fixedDepositHandler)
+	notifications.RegisterRoutes(protected, notificationHandler)
 
 	return router, nil
 }
