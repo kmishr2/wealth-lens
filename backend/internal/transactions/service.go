@@ -265,6 +265,9 @@ func (s *Service) buildEntry(index int, req TransactionEntryRequest) (Transactio
 		if !asset.IsActive {
 			return TransactionEntry{}, common.BadRequest(fmt.Sprintf("Asset is inactive at index %d", index))
 		}
+		if asset.AssetClass == assets.AssetClassFixedDeposit {
+			return TransactionEntry{}, common.BadRequest(fmt.Sprintf("Fixed deposit assets must be managed through fixed deposit endpoints at index %d", index))
+		}
 		if asset.Currency != currency {
 			return TransactionEntry{}, common.BadRequest(fmt.Sprintf("Asset currency must match entry currency at index %d", index))
 		}
@@ -313,6 +316,13 @@ func (s *Service) getReversibleTransaction(userID uuid.UUID, portfolioID uuid.UU
 	}
 	if target.TransactionType == TransactionTypeReversal {
 		return nil, common.BadRequest("Reversal transactions cannot be reversed")
+	}
+	managed, err := s.repo.IsFixedDepositManaged(target.ID)
+	if err != nil {
+		return nil, err
+	}
+	if managed {
+		return nil, common.BadRequest("Fixed deposit ledger events cannot be reversed or corrected directly")
 	}
 
 	hasReversal, err := s.repo.HasReversal(target.ID)

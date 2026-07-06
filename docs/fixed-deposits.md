@@ -47,6 +47,10 @@ and a positive cash entry for the actual proceeds. The closure links to that
 transaction and cannot be updated or deleted. Closed deposits cannot receive new
 current-value observations.
 
+Fixed-deposit assets and their opening and closing ledger events are managed
+only through the fixed-deposit endpoints. Generic transaction creation, CSV
+imports, reversals, and corrections cannot alter them.
+
 ## Validation
 
 - principal and current value must be greater than zero;

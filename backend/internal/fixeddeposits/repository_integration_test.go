@@ -5,13 +5,16 @@ package fixeddeposits_test
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/accounts"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/assets"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/database"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/fixeddeposits"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/portfolios"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/prices"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/transactions"
 	"github.com/shopspring/decimal"
 )
 
@@ -86,6 +89,24 @@ func TestCreatePersistsCompleteLedgerBackedBundle(t *testing.T) {
 		t.Fatalf("price count = %d, err = %v", priceCount, err)
 	}
 
+	transactionService := transactions.NewService(
+		transactions.NewRepository(db), portfolios.NewRepository(db), accounts.NewRepository(db), assets.NewRepository(db),
+	)
+	one := decimal.NewFromInt(1)
+	_, err = transactionService.Create(userID, portfolioID, transactions.TransactionCreateRequest{
+		AccountID: accountID, TransactionType: transactions.TransactionTypeSell,
+		OccurredAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+		Entries:    []transactions.TransactionEntryRequest{{EntryKind: transactions.EntryKindAsset, AssetID: &response.AssetID, Quantity: &one, Currency: "INR"}},
+	})
+	if err == nil || err.Error() != "Fixed deposit assets must be managed through fixed deposit endpoints at index 0" {
+		t.Fatalf("generic fixed-deposit transaction error = %v", err)
+	}
+	if _, err := transactionService.Reverse(userID, portfolioID, response.OpeningTransactionID, transactions.TransactionReversalRequest{
+		Reason: "should be rejected", OccurredAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+	}); err == nil || err.Error() != "Fixed deposit ledger events cannot be reversed or corrected directly" {
+		t.Fatalf("opening transaction reversal error = %v", err)
+	}
+
 	proceeds := decimal.RequireFromString("263100")
 	closed, err := service.Close(userID, portfolioID, accountID, response.ID, fixeddeposits.CloseRequest{
 		ClosureType: "premature", ClosedAt: "2026-01-02", Proceeds: &proceeds, Note: "Integration closure",
@@ -102,5 +123,10 @@ func TestCreatePersistsCompleteLedgerBackedBundle(t *testing.T) {
 	}
 	if err := db.Table("transaction_entries").Where("transaction_id = ?", *closed.ClosingTransactionID).Count(&closingEntryCount).Error; err != nil || closingEntryCount != 2 {
 		t.Fatalf("closing entry count = %d, err = %v", closingEntryCount, err)
+	}
+	if _, err := transactionService.Reverse(userID, portfolioID, *closed.ClosingTransactionID, transactions.TransactionReversalRequest{
+		Reason: "should be rejected", OccurredAt: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC),
+	}); err == nil || err.Error() != "Fixed deposit ledger events cannot be reversed or corrected directly" {
+		t.Fatalf("closing transaction reversal error = %v", err)
 	}
 }

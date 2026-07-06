@@ -79,6 +79,18 @@ func (r *Repository) HasReversal(transactionID uuid.UUID) (bool, error) {
 	return count > 0, err
 }
 
+func (r *Repository) IsFixedDepositManaged(transactionID uuid.UUID) (bool, error) {
+	var managed bool
+	err := r.db.Raw(`
+		SELECT EXISTS (
+			SELECT 1 FROM fixed_deposits WHERE opening_transaction_id = ?
+			UNION ALL
+			SELECT 1 FROM fixed_deposit_closures WHERE closing_transaction_id = ?
+		)
+	`, transactionID, transactionID).Scan(&managed).Error
+	return managed, err
+}
+
 func (r *Repository) ListExternalCashFlows(portfolioID uuid.UUID, startAfter time.Time, endAt time.Time) ([]ExternalCashFlowRecord, error) {
 	var cashFlows []ExternalCashFlowRecord
 	err := r.db.Raw(`
