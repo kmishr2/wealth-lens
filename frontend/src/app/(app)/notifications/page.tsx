@@ -42,13 +42,13 @@ export default async function NotificationsPage() {
                   <p className="eyebrow">{notification.portfolio_name}{notification.account_name ? ` · ${notification.account_name}` : ""}</p>
                   <h2 className="mt-2 text-xl font-semibold">{notification.title}</h2>
                   <p className="mt-3 leading-7 text-[var(--muted)]">{notification.explanation}</p>
-                  {notification.data_as_of_date && <p className="mt-2 text-xs text-[var(--muted)]">Progress data through {formatDate(notification.data_as_of_date)}</p>}
+                  {notification.data_as_of_date && <p className="mt-2 text-xs text-[var(--muted)]">Source data through {formatDate(notification.data_as_of_date)}</p>}
                 </div>
                 <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.08em] ${statusClass(notification.status)}`}>{notification.status}</span>
               </div>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--line)] pt-4">
                 <p className="text-xs leading-5 text-[var(--muted)]">Rule: {notification.trigger_rule}</p>
-                <Link className="focus-ring rounded-lg text-sm font-semibold text-[var(--brand)] hover:underline" href={notification.entity_type === "goal" ? `/portfolios/${notification.portfolio_id}/planning` : `/portfolios/${notification.portfolio_id}/accounts/${notification.account_id}`}>{notification.entity_type === "goal" ? "Open planning" : "Open account"} →</Link>
+                <Link className="focus-ring rounded-lg text-sm font-semibold text-[var(--brand)] hover:underline" href={noticeLink(notification)}>{notification.entity_type === "goal" ? "Open planning" : notification.entity_type === "asset" ? "Open asset" : "Open account"} →</Link>
               </div>
             </article>
           ))}
@@ -63,7 +63,13 @@ function formatDate(value: string) {
 }
 
 function statusClass(status: Notification["status"]) {
-  if (status === "overdue" || status === "due") return "border-[#e3aaa1] bg-[#fff4f2] text-[var(--danger)]";
-  if (status === "urgent") return "border-[#dec993] bg-[#fff9e9] text-[#775a12]";
+  if (status === "overdue" || status === "due" || status === "missing") return "border-[#e3aaa1] bg-[#fff4f2] text-[var(--danger)]";
+  if (status === "urgent" || status === "stale") return "border-[#dec993] bg-[#fff9e9] text-[#775a12]";
   return "border-[var(--line)] bg-[var(--brand-soft)] text-[var(--brand)]";
+}
+
+function noticeLink(notification: Notification) {
+  if (notification.entity_type === "goal") return `/portfolios/${notification.portfolio_id}/planning`;
+  if (notification.entity_type === "asset") return `/assets/${notification.entity_id}`;
+  return `/portfolios/${notification.portfolio_id}/accounts/${notification.account_id}`;
 }

@@ -19,4 +19,6 @@ type Response struct {
 	EntityID       uuid.UUID  `json:"entity_id"`
 	EntityType     string     `json:"entity_type"`
 	DataAsOfDate   *string    `json:"data_as_of_date,omitempty"`
+	AgeDays        *int       `json:"age_days,omitempty"`
+	ThresholdDays  *int       `json:"threshold_days,omitempty"`
 }

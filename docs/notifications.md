@@ -30,3 +30,17 @@ is overdue. Completed, archived, deleted, and goals marked reached by their
 latest monthly snapshot on or before the as-of date are excluded. If no monthly
 snapshot exists, the notice explicitly states that recorded progress is
 unavailable. The rule does not project whether the target will be achieved.
+
+## Market-data quality
+
+Held non-fixed-deposit assets receive a `missing` notice when no price exists on
+or before the as-of date. They receive a `stale` notice when the latest price is
+older than the configured calendar-day threshold. Holdings are derived from
+ledger quantities through the as-of date. Future transactions and future price
+observations are excluded.
+
+The default threshold is five calendar days. Callers may pass
+`stale_after_days` from 1 to 365 to make a different threshold explicit. The
+selected threshold, observed price age, latest price date, and trigger rule are
+returned with each stale notice. Fixed deposits are excluded because they use
+their separate explicit-value workflow.

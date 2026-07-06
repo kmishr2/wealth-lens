@@ -80,8 +80,8 @@ export type FixedDeposit = {
 
 export type Notification = {
   id: string;
-  kind: "fixed_deposit_maturity" | "goal_target_date";
-  status: "upcoming" | "urgent" | "due" | "overdue";
+  kind: "fixed_deposit_maturity" | "goal_target_date" | "asset_price_missing" | "asset_price_stale";
+  status: "upcoming" | "urgent" | "due" | "overdue" | "missing" | "stale";
   title: string;
   explanation: string;
   trigger_rule: string;
@@ -93,8 +93,10 @@ export type Notification = {
   account_id?: string;
   account_name?: string;
   entity_id: string;
-  entity_type: "fixed_deposit" | "goal";
+  entity_type: "fixed_deposit" | "goal" | "asset";
   data_as_of_date?: string;
+  age_days?: number;
+  threshold_days?: number;
 };
 
 export type Asset = {

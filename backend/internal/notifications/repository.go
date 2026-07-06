@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/assets"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/goals"
 	"gorm.io/gorm"
 )
@@ -50,5 +51,34 @@ func (r *Repository) ListActiveGoalsDueBy(userID uuid.UUID, asOfDate, cutoffDate
 			AND g.target_date <= ? AND COALESCE(latest.is_target_reached, false) = false
 		ORDER BY g.target_date ASC, g.id ASC
 	`, asOfDate, userID, goals.StatusActive, cutoffDate).Scan(&records).Error
+	return records, err
+}
+
+func (r *Repository) ListHeldAssetsWithLatestPrice(userID uuid.UUID, before time.Time) ([]HeldAssetPriceRecord, error) {
+	var records []HeldAssetPriceRecord
+	err := r.db.Raw(`
+		WITH held_assets AS (
+			SELECT t.portfolio_id, te.asset_id, SUM(te.quantity) AS quantity
+			FROM transaction_entries te
+			INNER JOIN transactions t ON t.id = te.transaction_id
+			WHERE te.entry_kind = 'asset' AND t.occurred_at < ?
+			GROUP BY t.portfolio_id, te.asset_id
+			HAVING SUM(te.quantity) <> 0
+		)
+		SELECT h.asset_id, a.name AS asset_name, a.symbol AS asset_symbol,
+			h.portfolio_id, p.name AS portfolio_name, latest.priced_at AS latest_price_at
+		FROM held_assets h
+		INNER JOIN portfolios p ON p.id = h.portfolio_id AND p.deleted_at IS NULL
+		INNER JOIN assets a ON a.id = h.asset_id AND a.asset_class <> ?
+		LEFT JOIN LATERAL (
+			SELECT priced_at
+			FROM asset_prices
+			WHERE asset_id = h.asset_id AND priced_at < ?
+			ORDER BY priced_at DESC, created_at DESC, id DESC
+			LIMIT 1
+		) latest ON true
+		WHERE p.user_id = ?
+		ORDER BY p.id, a.symbol, a.id
+	`, before, assets.AssetClassFixedDeposit, before, userID).Scan(&records).Error
 	return records, err
 }

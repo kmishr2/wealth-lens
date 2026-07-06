@@ -24,3 +24,12 @@ type GoalTargetRecord struct {
 	TargetDate         time.Time  `gorm:"column:target_date"`
 	LatestSnapshotDate *time.Time `gorm:"column:latest_snapshot_date"`
 }
+
+type HeldAssetPriceRecord struct {
+	AssetID       uuid.UUID  `gorm:"column:asset_id"`
+	AssetName     string     `gorm:"column:asset_name"`
+	AssetSymbol   string     `gorm:"column:asset_symbol"`
+	PortfolioID   uuid.UUID  `gorm:"column:portfolio_id"`
+	PortfolioName string     `gorm:"column:portfolio_name"`
+	LatestPriceAt *time.Time `gorm:"column:latest_price_at"`
+}

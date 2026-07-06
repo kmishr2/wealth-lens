@@ -8,11 +8,15 @@ import (
 	"github.com/google/uuid"
 )
 
-const noticeWindowDays = 30
+const (
+	noticeWindowDays      = 30
+	defaultStaleAfterDays = 5
+)
 
 type maturityReader interface {
 	ListOpenFixedDepositsMaturingBy(userID uuid.UUID, asOfDate, cutoffDate time.Time) ([]FixedDepositMaturityRecord, error)
 	ListActiveGoalsDueBy(userID uuid.UUID, asOfDate, cutoffDate time.Time) ([]GoalTargetRecord, error)
+	ListHeldAssetsWithLatestPrice(userID uuid.UUID, before time.Time) ([]HeldAssetPriceRecord, error)
 }
 
 type Service struct {
@@ -24,6 +28,10 @@ func NewService(repo maturityReader) *Service {
 }
 
 func (s *Service) List(userID uuid.UUID, asOfDate time.Time) ([]Response, error) {
+	return s.ListWithStaleAfterDays(userID, asOfDate, defaultStaleAfterDays)
+}
+
+func (s *Service) ListWithStaleAfterDays(userID uuid.UUID, asOfDate time.Time, staleAfterDays int) ([]Response, error) {
 	asOfDate = dateOnly(asOfDate)
 	cutoff := asOfDate.AddDate(0, 0, noticeWindowDays)
 	records, err := s.repo.ListOpenFixedDepositsMaturingBy(userID, asOfDate, cutoff)
@@ -63,6 +71,41 @@ func (s *Service) List(userID uuid.UUID, asOfDate time.Time) ([]Response, error)
 			AsOfDate:    asOfDate.Format("2006-01-02"), EventDate: record.TargetDate.UTC().Format("2006-01-02"), DaysUntilEvent: days,
 			PortfolioID: record.PortfolioID, PortfolioName: record.PortfolioName,
 			EntityID: record.GoalID, EntityType: "goal", DataAsOfDate: dataAsOfDate,
+		})
+	}
+	heldAssets, err := s.repo.ListHeldAssetsWithLatestPrice(userID, asOfDate.AddDate(0, 0, 1))
+	if err != nil {
+		return nil, err
+	}
+	for _, record := range heldAssets {
+		threshold := staleAfterDays
+		if record.LatestPriceAt == nil {
+			result = append(result, Response{
+				ID:   "asset-price-quality:" + record.PortfolioID.String() + ":" + record.AssetID.String(),
+				Kind: "asset_price_missing", Status: "missing", Title: "Asset price missing",
+				Explanation: fmt.Sprintf("%s (%s) is held in %s but has no price observation on or before the as-of date.", record.AssetName, record.AssetSymbol, record.PortfolioName),
+				TriggerRule: "Non-fixed-deposit asset has a non-zero ledger-derived quantity and no price observation on or before the as-of date.",
+				AsOfDate:    asOfDate.Format("2006-01-02"), EventDate: asOfDate.Format("2006-01-02"),
+				PortfolioID: record.PortfolioID, PortfolioName: record.PortfolioName,
+				EntityID: record.AssetID, EntityType: "asset",
+			})
+			continue
+		}
+		priceDate := dateOnly(*record.LatestPriceAt)
+		age := int(asOfDate.Sub(priceDate).Hours() / 24)
+		if age <= staleAfterDays {
+			continue
+		}
+		formattedPriceDate := priceDate.Format("2006-01-02")
+		result = append(result, Response{
+			ID:   "asset-price-quality:" + record.PortfolioID.String() + ":" + record.AssetID.String(),
+			Kind: "asset_price_stale", Status: "stale", Title: "Asset price is stale",
+			Explanation: fmt.Sprintf("The latest price for %s (%s) is %d calendar days old, exceeding the configured %d-day threshold.", record.AssetName, record.AssetSymbol, age, staleAfterDays),
+			TriggerRule: fmt.Sprintf("Non-fixed-deposit asset has a non-zero ledger-derived quantity and latest price age is greater than %d calendar days.", staleAfterDays),
+			AsOfDate:    asOfDate.Format("2006-01-02"), EventDate: formattedPriceDate,
+			PortfolioID: record.PortfolioID, PortfolioName: record.PortfolioName,
+			EntityID: record.AssetID, EntityType: "asset", DataAsOfDate: &formattedPriceDate,
+			AgeDays: &age, ThresholdDays: &threshold,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {

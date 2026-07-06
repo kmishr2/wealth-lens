@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +32,15 @@ func (h *Handler) List(c *gin.Context) {
 			return
 		}
 	}
-	response, err := h.service.List(userID, asOfDate)
+	staleAfterDays := defaultStaleAfterDays
+	if raw := c.Query("stale_after_days"); raw != "" {
+		staleAfterDays, err = strconv.Atoi(raw)
+		if err != nil || staleAfterDays < 1 || staleAfterDays > 365 {
+			common.RespondError(c, common.BadRequest("stale_after_days must be an integer from 1 to 365"))
+			return
+		}
+	}
+	response, err := h.service.ListWithStaleAfterDays(userID, asOfDate, staleAfterDays)
 	if err != nil {
 		common.RespondError(c, err)
 		return
