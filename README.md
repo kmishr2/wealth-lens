@@ -188,10 +188,10 @@ validation rules.
 ## Notices
 
 `GET /api/v1/notifications` derives current in-app notices directly from source
-records. The first rule reports open fixed deposits within 30 calendar days of
-maturity and deposits that have matured without a recorded closure. Every
-notice exposes its trigger rule and source links; it contains no prediction or
-recommendation. See `docs/notifications.md` for the exact status bands.
+records. Rules report open fixed deposits and unreached active goals within 30
+calendar days of their event date, plus overdue records. Every notice exposes
+its trigger rule and source links; it contains no prediction or recommendation.
+See `docs/notifications.md` for the exact status bands.
 
 ## Transaction CSV Imports
 

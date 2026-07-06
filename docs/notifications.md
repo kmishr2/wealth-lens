@@ -22,3 +22,11 @@ Statuses are explicit:
 Each response includes the trigger rule, explanation, source entity, event
 date, as-of date, and portfolio/account links. The stable identifier is derived
 from the notice kind and fixed-deposit ID.
+
+## Goal target dates
+
+An active goal appears when its target date is within the same 30-day window or
+is overdue. Completed, archived, deleted, and goals marked reached by their
+latest monthly snapshot on or before the as-of date are excluded. If no monthly
+snapshot exists, the notice explicitly states that recorded progress is
+unavailable. The rule does not project whether the target will be achieved.

@@ -2,15 +2,17 @@ package notifications
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-const maturityWindowDays = 30
+const noticeWindowDays = 30
 
 type maturityReader interface {
 	ListOpenFixedDepositsMaturingBy(userID uuid.UUID, asOfDate, cutoffDate time.Time) ([]FixedDepositMaturityRecord, error)
+	ListActiveGoalsDueBy(userID uuid.UUID, asOfDate, cutoffDate time.Time) ([]GoalTargetRecord, error)
 }
 
 type Service struct {
@@ -23,7 +25,7 @@ func NewService(repo maturityReader) *Service {
 
 func (s *Service) List(userID uuid.UUID, asOfDate time.Time) ([]Response, error) {
 	asOfDate = dateOnly(asOfDate)
-	cutoff := asOfDate.AddDate(0, 0, maturityWindowDays)
+	cutoff := asOfDate.AddDate(0, 0, noticeWindowDays)
 	records, err := s.repo.ListOpenFixedDepositsMaturingBy(userID, asOfDate, cutoff)
 	if err != nil {
 		return nil, err
@@ -38,23 +40,79 @@ func (s *Service) List(userID uuid.UUID, asOfDate time.Time) ([]Response, error)
 			TriggerRule: "Open fixed deposit with maturity date no more than 30 calendar days after the as-of date; remains overdue until closure is recorded.",
 			AsOfDate:    asOfDate.Format("2006-01-02"), EventDate: record.MaturityDate.UTC().Format("2006-01-02"), DaysUntilEvent: days,
 			PortfolioID: record.PortfolioID, PortfolioName: record.PortfolioName,
-			AccountID: record.AccountID, AccountName: record.AccountName,
+			AccountID: &record.AccountID, AccountName: record.AccountName,
 			EntityID: record.FixedDepositID, EntityType: "fixed_deposit",
 		})
 	}
+	goals, err := s.repo.ListActiveGoalsDueBy(userID, asOfDate, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	for _, record := range goals {
+		days := int(dateOnly(record.TargetDate).Sub(asOfDate).Hours() / 24)
+		status, explanation := goalStatus(days, record.GoalName, record.LatestSnapshotDate)
+		var dataAsOfDate *string
+		if record.LatestSnapshotDate != nil {
+			formatted := record.LatestSnapshotDate.UTC().Format("2006-01-02")
+			dataAsOfDate = &formatted
+		}
+		result = append(result, Response{
+			ID: "goal-target-date:" + record.GoalID.String(), Kind: "goal_target_date",
+			Status: status, Title: "Financial goal target date", Explanation: explanation,
+			TriggerRule: "Active goal not marked reached in its latest monthly snapshot, with target date no more than 30 calendar days after the as-of date; remains overdue until completed, archived, deleted, or reached.",
+			AsOfDate:    asOfDate.Format("2006-01-02"), EventDate: record.TargetDate.UTC().Format("2006-01-02"), DaysUntilEvent: days,
+			PortfolioID: record.PortfolioID, PortfolioName: record.PortfolioName,
+			EntityID: record.GoalID, EntityType: "goal", DataAsOfDate: dataAsOfDate,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].EventDate == result[j].EventDate {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].EventDate < result[j].EventDate
+	})
 	return result, nil
 }
 
 func maturityStatus(days int, name string) (string, string) {
+	status := noticeStatus(days)
 	switch {
 	case days < 0:
-		return "overdue", fmt.Sprintf("%s matured %d calendar days ago and has no recorded closure.", name, -days)
+		return status, fmt.Sprintf("%s matured %d calendar days ago and has no recorded closure.", name, -days)
 	case days == 0:
-		return "due", fmt.Sprintf("%s matures today and has no recorded closure.", name)
-	case days <= 7:
-		return "urgent", fmt.Sprintf("%s matures in %d calendar days.", name, days)
+		return status, fmt.Sprintf("%s matures today and has no recorded closure.", name)
 	default:
-		return "upcoming", fmt.Sprintf("%s matures in %d calendar days.", name, days)
+		return status, fmt.Sprintf("%s matures in %d calendar days.", name, days)
+	}
+}
+
+func goalStatus(days int, name string, latestSnapshotDate *time.Time) (string, string) {
+	status := noticeStatus(days)
+	var timing string
+	switch {
+	case days < 0:
+		timing = fmt.Sprintf("%s target date passed %d calendar days ago.", name, -days)
+	case days == 0:
+		timing = fmt.Sprintf("%s target date is today.", name)
+	default:
+		timing = fmt.Sprintf("%s target date is in %d calendar days.", name, days)
+	}
+	if latestSnapshotDate == nil {
+		return status, timing + " No monthly goal snapshot is available to determine recorded progress."
+	}
+	return status, timing + " The latest monthly snapshot on or before the as-of date has not marked the target reached."
+}
+
+func noticeStatus(days int) string {
+	switch {
+	case days < 0:
+		return "overdue"
+	case days == 0:
+		return "due"
+	case days <= 7:
+		return "urgent"
+	default:
+		return "upcoming"
 	}
 }
 

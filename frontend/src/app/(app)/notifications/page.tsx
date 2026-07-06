@@ -39,15 +39,16 @@ export default async function NotificationsPage() {
             <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface-strong)] p-6" key={notification.id}>
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="eyebrow">{notification.portfolio_name} · {notification.account_name}</p>
+                  <p className="eyebrow">{notification.portfolio_name}{notification.account_name ? ` · ${notification.account_name}` : ""}</p>
                   <h2 className="mt-2 text-xl font-semibold">{notification.title}</h2>
                   <p className="mt-3 leading-7 text-[var(--muted)]">{notification.explanation}</p>
+                  {notification.data_as_of_date && <p className="mt-2 text-xs text-[var(--muted)]">Progress data through {formatDate(notification.data_as_of_date)}</p>}
                 </div>
                 <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.08em] ${statusClass(notification.status)}`}>{notification.status}</span>
               </div>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--line)] pt-4">
                 <p className="text-xs leading-5 text-[var(--muted)]">Rule: {notification.trigger_rule}</p>
-                <Link className="focus-ring rounded-lg text-sm font-semibold text-[var(--brand)] hover:underline" href={`/portfolios/${notification.portfolio_id}/accounts/${notification.account_id}`}>Open account →</Link>
+                <Link className="focus-ring rounded-lg text-sm font-semibold text-[var(--brand)] hover:underline" href={notification.entity_type === "goal" ? `/portfolios/${notification.portfolio_id}/planning` : `/portfolios/${notification.portfolio_id}/accounts/${notification.account_id}`}>{notification.entity_type === "goal" ? "Open planning" : "Open account"} →</Link>
               </div>
             </article>
           ))}
@@ -55,6 +56,10 @@ export default async function NotificationsPage() {
       )}
     </main>
   );
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
 }
 
 function statusClass(status: Notification["status"]) {

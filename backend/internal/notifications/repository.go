@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kaustubhmishra/wealth-lens/backend/internal/goals"
 	"gorm.io/gorm"
 )
 
@@ -28,5 +29,26 @@ func (r *Repository) ListOpenFixedDepositsMaturingBy(userID uuid.UUID, asOfDate,
 			AND fd.start_date <= ? AND fd.maturity_date <= ?
 		ORDER BY fd.maturity_date ASC, fd.id ASC
 	`, userID, asOfDate, cutoffDate).Scan(&records).Error
+	return records, err
+}
+
+func (r *Repository) ListActiveGoalsDueBy(userID uuid.UUID, asOfDate, cutoffDate time.Time) ([]GoalTargetRecord, error) {
+	var records []GoalTargetRecord
+	err := r.db.Raw(`
+		SELECT g.id AS goal_id, g.portfolio_id, p.name AS portfolio_name,
+			g.name AS goal_name, g.target_date, latest.snapshot_month_end AS latest_snapshot_date
+		FROM goals g
+		INNER JOIN portfolios p ON p.id = g.portfolio_id AND p.deleted_at IS NULL
+		LEFT JOIN LATERAL (
+			SELECT snapshot_month_end, is_target_reached
+			FROM monthly_goal_snapshots
+			WHERE goal_id = g.id AND snapshot_month_end <= ?
+			ORDER BY snapshot_month_end DESC, id DESC
+			LIMIT 1
+		) latest ON true
+		WHERE p.user_id = ? AND g.deleted_at IS NULL AND g.status = ?
+			AND g.target_date <= ? AND COALESCE(latest.is_target_reached, false) = false
+		ORDER BY g.target_date ASC, g.id ASC
+	`, asOfDate, userID, goals.StatusActive, cutoffDate).Scan(&records).Error
 	return records, err
 }

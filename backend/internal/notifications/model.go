@@ -15,3 +15,12 @@ type FixedDepositMaturityRecord struct {
 	DepositName    string    `gorm:"column:deposit_name"`
 	MaturityDate   time.Time `gorm:"column:maturity_date"`
 }
+
+type GoalTargetRecord struct {
+	GoalID             uuid.UUID  `gorm:"column:goal_id"`
+	PortfolioID        uuid.UUID  `gorm:"column:portfolio_id"`
+	PortfolioName      string     `gorm:"column:portfolio_name"`
+	GoalName           string     `gorm:"column:goal_name"`
+	TargetDate         time.Time  `gorm:"column:target_date"`
+	LatestSnapshotDate *time.Time `gorm:"column:latest_snapshot_date"`
+}

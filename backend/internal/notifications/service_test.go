@@ -9,13 +9,37 @@ import (
 
 type fakeMaturityReader struct {
 	records []FixedDepositMaturityRecord
+	goals   []GoalTargetRecord
 	asOf    time.Time
 	cutoff  time.Time
+}
+
+func (f *fakeMaturityReader) ListActiveGoalsDueBy(_ uuid.UUID, _, _ time.Time) ([]GoalTargetRecord, error) {
+	return f.goals, nil
 }
 
 func (f *fakeMaturityReader) ListOpenFixedDepositsMaturingBy(_ uuid.UUID, asOfDate, cutoffDate time.Time) ([]FixedDepositMaturityRecord, error) {
 	f.asOf, f.cutoff = asOfDate, cutoffDate
 	return f.records, nil
+}
+
+func TestListBuildsGoalTargetNoticeFromLatestSnapshot(t *testing.T) {
+	goalID := uuid.New()
+	snapshotDate := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
+	repo := &fakeMaturityReader{goals: []GoalTargetRecord{{
+		GoalID: goalID, PortfolioID: uuid.New(), PortfolioName: "Long term", GoalName: "Education",
+		TargetDate: time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), LatestSnapshotDate: &snapshotDate,
+	}}}
+	result, err := NewService(repo).List(uuid.New(), time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result) != 1 || result[0].Kind != "goal_target_date" || result[0].Status != "upcoming" || result[0].DaysUntilEvent != 14 {
+		t.Fatalf("goal notification = %+v", result)
+	}
+	if result[0].DataAsOfDate == nil || *result[0].DataAsOfDate != "2026-06-30" {
+		t.Fatalf("data as-of date = %v", result[0].DataAsOfDate)
+	}
 }
 
 func TestListBuildsDeterministicMaturityNotifications(t *testing.T) {

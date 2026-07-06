@@ -80,7 +80,7 @@ export type FixedDeposit = {
 
 export type Notification = {
   id: string;
-  kind: "fixed_deposit_maturity";
+  kind: "fixed_deposit_maturity" | "goal_target_date";
   status: "upcoming" | "urgent" | "due" | "overdue";
   title: string;
   explanation: string;
@@ -90,10 +90,11 @@ export type Notification = {
   days_until_event: number;
   portfolio_id: string;
   portfolio_name: string;
-  account_id: string;
-  account_name: string;
+  account_id?: string;
+  account_name?: string;
   entity_id: string;
-  entity_type: "fixed_deposit";
+  entity_type: "fixed_deposit" | "goal";
+  data_as_of_date?: string;
 };
 
 export type Asset = {
