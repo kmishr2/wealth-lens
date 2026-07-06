@@ -85,4 +85,22 @@ func TestCreatePersistsCompleteLedgerBackedBundle(t *testing.T) {
 	if err := db.Table("asset_prices").Where("asset_id = ?", response.AssetID).Count(&priceCount).Error; err != nil || priceCount != 1 {
 		t.Fatalf("price count = %d, err = %v", priceCount, err)
 	}
+
+	proceeds := decimal.RequireFromString("263100")
+	closed, err := service.Close(userID, portfolioID, accountID, response.ID, fixeddeposits.CloseRequest{
+		ClosureType: "premature", ClosedAt: "2026-01-02", Proceeds: &proceeds, Note: "Integration closure",
+	})
+	if err != nil {
+		t.Fatalf("close fixed deposit: %v", err)
+	}
+	if closed.Status != "closed" || closed.ClosingTransactionID == nil {
+		t.Fatalf("closed response = %+v", closed)
+	}
+	var closureCount, closingEntryCount int64
+	if err := db.Table("fixed_deposit_closures").Where("fixed_deposit_id = ?", response.ID).Count(&closureCount).Error; err != nil || closureCount != 1 {
+		t.Fatalf("closure count = %d, err = %v", closureCount, err)
+	}
+	if err := db.Table("transaction_entries").Where("transaction_id = ?", *closed.ClosingTransactionID).Count(&closingEntryCount).Error; err != nil || closingEntryCount != 2 {
+		t.Fatalf("closing entry count = %d, err = %v", closingEntryCount, err)
+	}
 }

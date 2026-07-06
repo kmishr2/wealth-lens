@@ -27,6 +27,13 @@ type ValueCreateRequest struct {
 	CurrentValueDate string           `json:"current_value_date"`
 }
 
+type CloseRequest struct {
+	ClosureType string           `json:"closure_type"`
+	ClosedAt    string           `json:"closed_at"`
+	Proceeds    *decimal.Decimal `json:"proceeds"`
+	Note        string           `json:"note"`
+}
+
 type Response struct {
 	ID                   uuid.UUID                `json:"id"`
 	PortfolioID          uuid.UUID                `json:"portfolio_id"`
@@ -44,6 +51,31 @@ type Response struct {
 	CurrentValueAt       time.Time                `json:"current_value_at"`
 	ValuationMetadata    finance.MetricDefinition `json:"valuation_metadata"`
 	CreatedAt            time.Time                `json:"created_at"`
+	Status               string                   `json:"status"`
+	DaysToMaturity       int                      `json:"days_to_maturity"`
+	ClosureType          *string                  `json:"closure_type,omitempty"`
+	ClosedAt             *string                  `json:"closed_at,omitempty"`
+	ClosingProceeds      *decimal.Decimal         `json:"closing_proceeds,omitempty"`
+	ClosingTransactionID *uuid.UUID               `json:"closing_transaction_id,omitempty"`
+}
+
+func applyLifecycle(response *Response, record FixedDeposit, closure *Closure, today time.Time) {
+	if closure != nil {
+		closedAt := closure.ClosedAt.UTC().Format(dateLayout)
+		response.Status = "closed"
+		response.ClosureType = &closure.ClosureType
+		response.ClosedAt = &closedAt
+		response.ClosingProceeds = &closure.Proceeds
+		response.ClosingTransactionID = &closure.ClosingTransactionID
+		return
+	}
+	today = utcDate(today)
+	if !today.Before(record.MaturityDate) {
+		response.Status = "maturity_due"
+		return
+	}
+	response.Status = "active"
+	response.DaysToMaturity = int(record.MaturityDate.Sub(today).Hours() / 24)
 }
 
 func toResponse(record FixedDeposit, currentValue decimal.Decimal, currentValueAt time.Time) Response {

@@ -21,6 +21,8 @@ type bundleWriterReader interface {
 	ListByAccount(portfolioID uuid.UUID, accountID uuid.UUID) ([]FixedDeposit, error)
 	GetByIDAccount(portfolioID uuid.UUID, accountID uuid.UUID, fixedDepositID uuid.UUID) (*FixedDeposit, error)
 	CreateValue(price *prices.AssetPrice) error
+	GetClosureByFixedDeposit(fixedDepositID uuid.UUID) (*Closure, error)
+	CloseBundle(transaction *transactions.Transaction, closure *Closure) error
 }
 
 func (s *Service) CreateValue(userID uuid.UUID, portfolioID uuid.UUID, accountID uuid.UUID, fixedDepositID uuid.UUID, req ValueCreateRequest) (Response, error) {
@@ -35,6 +37,11 @@ func (s *Service) CreateValue(userID uuid.UUID, portfolioID uuid.UUID, accountID
 		return Response{}, common.NotFound("Fixed deposit not found")
 	}
 	if err != nil {
+		return Response{}, err
+	}
+	if _, err := s.repo.GetClosureByFixedDeposit(record.ID); err == nil {
+		return Response{}, common.Conflict("Closed fixed deposit values cannot be updated")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return Response{}, err
 	}
 	if req.CurrentValue == nil || !req.CurrentValue.GreaterThan(decimal.Zero) {
@@ -55,7 +62,9 @@ func (s *Service) CreateValue(userID uuid.UUID, portfolioID uuid.UUID, accountID
 	if err := s.repo.CreateValue(price); err != nil {
 		return Response{}, err
 	}
-	return toResponse(*record, price.Price, price.PricedAt), nil
+	response := toResponse(*record, price.Price, price.PricedAt)
+	applyLifecycle(&response, *record, nil, time.Now().UTC())
+	return response, nil
 }
 
 type portfolioReader interface {
@@ -104,7 +113,9 @@ func (s *Service) Create(userID uuid.UUID, portfolioID uuid.UUID, accountID uuid
 		}
 		return Response{}, err
 	}
-	return toResponse(*record, price.Price, price.PricedAt), nil
+	response := toResponse(*record, price.Price, price.PricedAt)
+	applyLifecycle(&response, *record, nil, time.Now().UTC())
+	return response, nil
 }
 
 func (s *Service) List(userID uuid.UUID, portfolioID uuid.UUID, accountID uuid.UUID) ([]Response, error) {
@@ -127,9 +138,85 @@ func (s *Service) List(userID uuid.UUID, portfolioID uuid.UUID, accountID uuid.U
 		if err != nil {
 			return nil, err
 		}
-		responses = append(responses, toResponse(record, price.Price, price.PricedAt))
+		var closure *Closure
+		closure, err = s.repo.GetClosureByFixedDeposit(record.ID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			closure = nil
+		} else if err != nil {
+			return nil, err
+		}
+		response := toResponse(record, price.Price, price.PricedAt)
+		applyLifecycle(&response, record, closure, time.Now().UTC())
+		responses = append(responses, response)
 	}
 	return responses, nil
+}
+
+func (s *Service) Close(userID uuid.UUID, portfolioID uuid.UUID, accountID uuid.UUID, fixedDepositID uuid.UUID, req CloseRequest) (Response, error) {
+	if _, err := s.getOwnedPortfolio(userID, portfolioID); err != nil {
+		return Response{}, err
+	}
+	if _, err := s.getAccount(portfolioID, accountID); err != nil {
+		return Response{}, err
+	}
+	record, err := s.repo.GetByIDAccount(portfolioID, accountID, fixedDepositID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return Response{}, common.NotFound("Fixed deposit not found")
+	}
+	if err != nil {
+		return Response{}, err
+	}
+	if _, err := s.repo.GetClosureByFixedDeposit(record.ID); err == nil {
+		return Response{}, common.Conflict("Fixed deposit is already closed")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return Response{}, err
+	}
+	if req.Proceeds == nil || !req.Proceeds.GreaterThan(decimal.Zero) {
+		return Response{}, common.BadRequest("Closing proceeds must be greater than zero")
+	}
+	closedAt, err := parseDate(req.ClosedAt, "Closed date")
+	if err != nil {
+		return Response{}, err
+	}
+	if closedAt.Before(record.StartDate) || closedAt.After(utcDate(time.Now().UTC())) {
+		return Response{}, common.BadRequest("Closed date must be between start date and today")
+	}
+	closureType := strings.ToLower(strings.TrimSpace(req.ClosureType))
+	expectedType := "maturity"
+	if closedAt.Before(record.MaturityDate) {
+		expectedType = "premature"
+	}
+	if closureType != expectedType {
+		return Response{}, common.BadRequest("Closure type must match whether the closed date is before maturity")
+	}
+	transactionID := uuid.New()
+	proceeds := req.Proceeds.Round(4)
+	negativeOne := decimal.NewFromInt(-1)
+	idempotencyKey := "fixed-deposit-close:" + record.ID.String()
+	transaction := &transactions.Transaction{
+		ID: transactionID, PortfolioID: portfolioID, AccountID: accountID,
+		TransactionType: transactions.TransactionTypeSell, OccurredAt: closedAt,
+		Description: "Closed fixed deposit: " + record.Name, IdempotencyKey: &idempotencyKey,
+		CreatedByUserID: userID,
+		Entries: []transactions.TransactionEntry{
+			{ID: uuid.New(), TransactionID: transactionID, EntryKind: transactions.EntryKindAsset, AssetID: &record.AssetID, Quantity: &negativeOne, Currency: record.Currency},
+			{ID: uuid.New(), TransactionID: transactionID, EntryKind: transactions.EntryKindCash, Amount: &proceeds, Currency: record.Currency},
+		},
+	}
+	closure := &Closure{
+		ID: uuid.New(), FixedDepositID: record.ID, PortfolioID: portfolioID, AccountID: accountID,
+		ClosingTransactionID: transactionID, ClosureType: closureType, ClosedAt: closedAt,
+		Proceeds: proceeds, Currency: record.Currency, Note: strings.TrimSpace(req.Note), CreatedByUserID: userID,
+	}
+	if err := s.repo.CloseBundle(transaction, closure); err != nil {
+		if common.IsUniqueViolation(err) {
+			return Response{}, common.Conflict("Fixed deposit is already closed")
+		}
+		return Response{}, err
+	}
+	response := toResponse(*record, closure.Proceeds, closure.ClosedAt)
+	applyLifecycle(&response, *record, closure, time.Now().UTC())
+	return response, nil
 }
 
 type validatedCreate struct {

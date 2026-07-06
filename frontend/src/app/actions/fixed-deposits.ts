@@ -108,6 +108,47 @@ export async function recordFixedDepositValueAction(
   return { message: "Current value recorded.", success: true };
 }
 
+export async function closeFixedDepositAction(
+  _state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const portfolioID = String(formData.get("portfolioId") ?? "").trim();
+  const accountID = String(formData.get("accountId") ?? "").trim();
+  const fixedDepositID = String(formData.get("fixedDepositId") ?? "").trim();
+  const closureType = String(formData.get("closureType") ?? "").trim();
+  const closedAt = String(formData.get("closedAt") ?? "").trim();
+  const proceeds = String(formData.get("proceeds") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const fields: Record<string, string> = {};
+
+  if (closureType !== "maturity" && closureType !== "premature") {
+    fields.closureType = "Choose maturity or premature closure.";
+  }
+  if (!validDate(closedAt)) {
+    fields.closedAt = "Choose a valid closure date.";
+  } else if (closedAt > new Date().toISOString().slice(0, 10)) {
+    fields.closedAt = "Closure date cannot be in the future.";
+  }
+  validatePositive(proceeds, "proceeds", "Enter proceeds greater than zero.", fields);
+  if (Object.keys(fields).length > 0) {
+    return { message: "Check the highlighted fields.", fields };
+  }
+
+  const path = `/portfolios/${encodeURIComponent(portfolioID)}/accounts/${encodeURIComponent(accountID)}/fixed-deposits/${encodeURIComponent(fixedDepositID)}/closure`;
+  try {
+    await authenticatedRequest<FixedDeposit>(path, {
+      method: "POST",
+      body: JSON.stringify({ closure_type: closureType, closed_at: closedAt, proceeds, note }),
+    });
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "The fixed deposit could not be closed." };
+  }
+
+  revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}`);
+  revalidatePath(`/portfolios/${encodeURIComponent(portfolioID)}/accounts/${encodeURIComponent(accountID)}`);
+  return { message: "Fixed deposit closed and proceeds recorded in the ledger.", success: true };
+}
+
 async function authenticatedRequest<T>(path: string, options: RequestInit): Promise<T> {
   const accessToken = await getAccessToken();
   if (!accessToken) redirect("/login");

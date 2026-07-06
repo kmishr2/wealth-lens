@@ -71,6 +71,29 @@ func (h *Handler) CreateValue(c *gin.Context) {
 	common.RespondOK(c, http.StatusCreated, response)
 }
 
+func (h *Handler) Close(c *gin.Context) {
+	userID, portfolioID, accountID, ok := parseScope(c)
+	if !ok {
+		return
+	}
+	fixedDepositID, err := uuid.Parse(c.Param("fixedDepositId"))
+	if err != nil {
+		common.RespondError(c, common.NotFound("Fixed deposit not found"))
+		return
+	}
+	var req CloseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.RespondError(c, common.BadRequest("Invalid request body"))
+		return
+	}
+	response, err := h.service.Close(userID, portfolioID, accountID, fixedDepositID, req)
+	if err != nil {
+		common.RespondError(c, err)
+		return
+	}
+	common.RespondOK(c, http.StatusCreated, response)
+}
+
 func parseScope(c *gin.Context) (uuid.UUID, uuid.UUID, uuid.UUID, bool) {
 	userID, err := middleware.CurrentUserID(c)
 	if err != nil {

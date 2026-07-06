@@ -49,3 +49,18 @@ func (r *Repository) GetByIDAccount(portfolioID uuid.UUID, accountID uuid.UUID, 
 func (r *Repository) CreateValue(price *prices.AssetPrice) error {
 	return r.db.Create(price).Error
 }
+
+func (r *Repository) GetClosureByFixedDeposit(fixedDepositID uuid.UUID) (*Closure, error) {
+	var closure Closure
+	err := r.db.First(&closure, "fixed_deposit_id = ?", fixedDepositID).Error
+	return &closure, err
+}
+
+func (r *Repository) CloseBundle(transaction *transactions.Transaction, closure *Closure) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(transaction).Error; err != nil {
+			return err
+		}
+		return tx.Create(closure).Error
+	})
+}

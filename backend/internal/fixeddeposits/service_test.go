@@ -13,6 +13,7 @@ import (
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/prices"
 	"github.com/kaustubhmishra/wealth-lens/backend/internal/transactions"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type fakeBundleRepo struct {
@@ -20,6 +21,8 @@ type fakeBundleRepo struct {
 	transaction *transactions.Transaction
 	price       *prices.AssetPrice
 	record      *FixedDeposit
+	closure     *Closure
+	closingTx   *transactions.Transaction
 }
 
 func (f *fakeBundleRepo) CreateBundle(asset *assets.Asset, transaction *transactions.Transaction, price *prices.AssetPrice, record *FixedDeposit) error {
@@ -37,6 +40,18 @@ func (f *fakeBundleRepo) GetByIDAccount(uuid.UUID, uuid.UUID, uuid.UUID) (*Fixed
 
 func (f *fakeBundleRepo) CreateValue(price *prices.AssetPrice) error {
 	f.price = price
+	return nil
+}
+
+func (f *fakeBundleRepo) GetClosureByFixedDeposit(uuid.UUID) (*Closure, error) {
+	if f.closure == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return f.closure, nil
+}
+
+func (f *fakeBundleRepo) CloseBundle(transaction *transactions.Transaction, closure *Closure) error {
+	f.closingTx, f.closure = transaction, closure
 	return nil
 }
 
@@ -58,9 +73,12 @@ func (f fakeAccountRepo) GetInPortfolio(uuid.UUID, uuid.UUID) (*accounts.Account
 	return f.account, nil
 }
 
-type fakePriceRepo struct{}
+type fakePriceRepo struct{ price *prices.AssetPrice }
 
-func (fakePriceRepo) GetLatestByAsset(uuid.UUID) (*prices.AssetPrice, error) {
+func (f fakePriceRepo) GetLatestByAsset(uuid.UUID) (*prices.AssetPrice, error) {
+	if f.price != nil {
+		return f.price, nil
+	}
 	return nil, errors.New("not used")
 }
 
@@ -148,6 +166,99 @@ func TestCreateValueAppendsExplicitObservation(t *testing.T) {
 	}
 	if !response.CurrentValue.Equal(value) || response.CurrentValueAt.Format(dateLayout) != "2026-01-31" {
 		t.Fatalf("response value = %s at %s", response.CurrentValue, response.CurrentValueAt)
+	}
+}
+
+func TestCreateValueRejectsClosedDeposit(t *testing.T) {
+	portfolioID, accountID := uuid.New(), uuid.New()
+	repo := &fakeBundleRepo{
+		record:  &FixedDeposit{ID: uuid.New(), PortfolioID: portfolioID, AccountID: accountID, StartDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
+		closure: &Closure{ID: uuid.New()},
+	}
+	service := NewService(
+		repo,
+		fakePortfolioRepo{portfolio: &portfolios.Portfolio{ID: portfolioID}},
+		fakeAccountRepo{account: &accounts.Account{ID: accountID, PortfolioID: portfolioID, AccountType: accounts.AccountTypeBank, Currency: "INR"}},
+		fakePriceRepo{},
+	)
+	value := decimal.NewFromInt(100)
+	_, err := service.CreateValue(uuid.New(), portfolioID, accountID, repo.record.ID, ValueCreateRequest{CurrentValue: &value, CurrentValueDate: "2026-01-01"})
+	assertAppErrorMessage(t, err, "Closed fixed deposit values cannot be updated")
+}
+
+func TestCloseCreatesSellLedgerEvent(t *testing.T) {
+	userID, portfolioID, accountID, assetID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	repo := &fakeBundleRepo{record: &FixedDeposit{
+		ID: uuid.New(), PortfolioID: portfolioID, AccountID: accountID, AssetID: assetID,
+		Name: "Matured FD", Currency: "INR", StartDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		MaturityDate: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	}}
+	latestValue := decimal.RequireFromString("107250")
+	service := NewService(
+		repo,
+		fakePortfolioRepo{portfolio: &portfolios.Portfolio{ID: portfolioID, UserID: userID}},
+		fakeAccountRepo{account: &accounts.Account{ID: accountID, PortfolioID: portfolioID, AccountType: accounts.AccountTypeBank, Currency: "INR"}},
+		fakePriceRepo{price: &prices.AssetPrice{AssetID: assetID, Price: latestValue, Currency: "INR", PricedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}},
+	)
+	proceeds := decimal.RequireFromString("108000")
+	response, err := service.Close(userID, portfolioID, accountID, repo.record.ID, CloseRequest{
+		ClosureType: "maturity", ClosedAt: "2025-01-01", Proceeds: &proceeds,
+	})
+	if err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+	if repo.closingTx == nil || repo.closure == nil {
+		t.Fatal("CloseBundle did not receive the transaction and closure")
+	}
+	if repo.closingTx.TransactionType != transactions.TransactionTypeSell || len(repo.closingTx.Entries) != 2 {
+		t.Fatalf("closing transaction = %s with %d entries", repo.closingTx.TransactionType, len(repo.closingTx.Entries))
+	}
+	if got := *repo.closingTx.Entries[0].Quantity; !got.Equal(decimal.NewFromInt(-1)) {
+		t.Fatalf("asset quantity = %s, want -1", got)
+	}
+	if got := *repo.closingTx.Entries[1].Amount; !got.Equal(proceeds) {
+		t.Fatalf("cash proceeds = %s, want %s", got, proceeds)
+	}
+	if response.Status != "closed" || response.ClosingTransactionID == nil || *response.ClosingTransactionID != repo.closingTx.ID {
+		t.Fatalf("response lifecycle = %+v", response)
+	}
+}
+
+func TestCloseRejectsClosureTypeThatDoesNotMatchDate(t *testing.T) {
+	portfolioID, accountID := uuid.New(), uuid.New()
+	repo := &fakeBundleRepo{record: &FixedDeposit{
+		ID: uuid.New(), PortfolioID: portfolioID, AccountID: accountID, AssetID: uuid.New(),
+		Currency: "INR", StartDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		MaturityDate: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
+	}}
+	service := NewService(
+		repo,
+		fakePortfolioRepo{portfolio: &portfolios.Portfolio{ID: portfolioID}},
+		fakeAccountRepo{account: &accounts.Account{ID: accountID, PortfolioID: portfolioID, AccountType: accounts.AccountTypeBank, Currency: "INR"}},
+		fakePriceRepo{},
+	)
+	proceeds := decimal.NewFromInt(100)
+	_, err := service.Close(uuid.New(), portfolioID, accountID, repo.record.ID, CloseRequest{
+		ClosureType: "maturity", ClosedAt: "2026-01-01", Proceeds: &proceeds,
+	})
+	assertAppErrorMessage(t, err, "Closure type must match whether the closed date is before maturity")
+}
+
+func TestApplyLifecycle(t *testing.T) {
+	record := FixedDeposit{MaturityDate: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)}
+	response := Response{}
+	applyLifecycle(&response, record, nil, time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC))
+	if response.Status != "active" || response.DaysToMaturity != 26 {
+		t.Fatalf("active lifecycle = %+v", response)
+	}
+	applyLifecycle(&response, record, nil, time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
+	if response.Status != "maturity_due" {
+		t.Fatalf("maturity lifecycle = %+v", response)
+	}
+	closure := &Closure{ClosureType: "maturity", ClosedAt: record.MaturityDate, Proceeds: decimal.NewFromInt(100), ClosingTransactionID: uuid.New()}
+	applyLifecycle(&response, record, closure, time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC))
+	if response.Status != "closed" || response.ClosureType == nil || *response.ClosureType != "maturity" {
+		t.Fatalf("closed lifecycle = %+v", response)
 	}
 }
 

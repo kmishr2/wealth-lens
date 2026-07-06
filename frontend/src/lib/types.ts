@@ -70,6 +70,12 @@ export type FixedDeposit = {
   current_value_at: string;
   valuation_metadata: MetricDefinition;
   created_at: string;
+  status: "active" | "maturity_due" | "closed";
+  days_to_maturity: number;
+  closure_type?: "maturity" | "premature";
+  closed_at?: string;
+  closing_proceeds?: string;
+  closing_transaction_id?: string;
 };
 
 export type Asset = {

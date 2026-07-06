@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { CreateTransactionForm } from "@/components/create-transaction-form";
 import { CreateFixedDepositForm } from "@/components/create-fixed-deposit-form";
 import { FixedDepositValueForm } from "@/components/fixed-deposit-value-form";
+import { FixedDepositCloseForm } from "@/components/fixed-deposit-close-form";
 import { AccountSettings } from "@/components/account-settings";
 import { TransactionAuditActions } from "@/components/transaction-audit-actions";
 import { TransactionCSVImportForm } from "@/components/transaction-csv-import-form";
@@ -30,7 +31,7 @@ async function loadAccountLedger(portfolioID: string, accountID: string) {
       portfolio,
       account,
       transactions: allTransactions.filter((transaction) => transaction.account_id === accountID),
-      assets: assets.filter((asset) => asset.is_active && asset.currency === account.currency),
+      assets: assets.filter((asset) => asset.is_active && asset.currency === account.currency && asset.asset_class !== "fixed_deposit"),
       fixedDeposits,
     };
   } catch (error) {
@@ -52,7 +53,9 @@ export default async function AccountLedgerPage({
 }) {
   const { portfolioId, accountId } = await params;
   const { portfolio, account, transactions, assets, fixedDeposits } = await loadAccountLedger(portfolioId, accountId);
-  const fixedDepositOpeningTransactionIDs = new Set(fixedDeposits.map((deposit) => deposit.opening_transaction_id));
+  const fixedDepositTransactionIDs = new Set(fixedDeposits.flatMap((deposit) =>
+    [deposit.opening_transaction_id, deposit.closing_transaction_id].filter((id): id is string => Boolean(id)),
+  ));
   const supersededTransactionIDs = new Set(
     transactions.flatMap((transaction) =>
       [transaction.reverses_transaction_id, transaction.corrects_transaction_id].filter(
@@ -111,17 +114,27 @@ export default async function AccountLedgerPage({
                   <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface-strong)] p-6" key={deposit.id}>
                     <div className="flex items-start justify-between gap-4">
                       <div><p className="eyebrow">{deposit.bank_reference || "Fixed deposit"}</p><h3 className="mt-2 text-xl font-semibold">{deposit.name}</h3></div>
-                      <span className="rounded-full border border-[var(--line)] px-3 py-1 text-xs font-bold text-[var(--muted)]">{deposit.annual_interest_rate}% p.a.</span>
+                      <div className="text-right">
+                        <span className="rounded-full border border-[var(--line)] px-3 py-1 text-xs font-bold text-[var(--muted)]">{deposit.annual_interest_rate}% p.a.</span>
+                        <p className="mt-3 text-xs font-semibold text-[var(--brand)]">{lifecycleLabel(deposit)}</p>
+                      </div>
                     </div>
-                    <p className="mt-5 text-2xl font-semibold">{formatMoney(deposit.current_value, deposit.currency)}</p>
-                    <p className="mt-1 text-xs text-[var(--muted)]">Explicit value at {formatDate(deposit.current_value_at)}</p>
+                    <p className="mt-5 text-2xl font-semibold">{formatMoney(deposit.closing_proceeds ?? deposit.current_value, deposit.currency)}</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">{deposit.status === "closed" ? `Actual proceeds on ${formatDate(deposit.closed_at!)}` : `Explicit value at ${formatDate(deposit.current_value_at)}`}</p>
                     <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-[var(--line)] pt-4 text-sm">
                       <div><dt className="text-xs text-[var(--muted)]">Principal</dt><dd className="mt-1 font-semibold">{formatMoney(deposit.principal, deposit.currency)}</dd></div>
                       <div><dt className="text-xs text-[var(--muted)]">Maturity</dt><dd className="mt-1 font-semibold">{formatDate(deposit.maturity_date)}</dd></div>
                       <div><dt className="text-xs text-[var(--muted)]">Started</dt><dd className="mt-1 font-semibold">{formatDate(deposit.start_date)}</dd></div>
                       <div><dt className="text-xs text-[var(--muted)]">Valuation</dt><dd className="mt-1 font-semibold">Explicit only</dd></div>
                     </dl>
-                    <FixedDepositValueForm accountID={account.id} currency={deposit.currency} fixedDepositID={deposit.id} portfolioID={portfolio.id} />
+                    {deposit.status === "closed" ? (
+                      <p className="mt-5 border-t border-[var(--line)] pt-4 text-sm text-[var(--muted)]">Closed by {deposit.closure_type === "premature" ? "premature closure" : "maturity"}. The contract and closure ledger event are immutable.</p>
+                    ) : (
+                      <>
+                        <FixedDepositValueForm accountID={account.id} currency={deposit.currency} fixedDepositID={deposit.id} portfolioID={portfolio.id} />
+                        <FixedDepositCloseForm accountID={account.id} currency={deposit.currency} fixedDepositID={deposit.id} portfolioID={portfolio.id} />
+                      </>
+                    )}
                   </article>
                 ))}
               </div>
@@ -175,7 +188,7 @@ export default async function AccountLedgerPage({
                       </div>
                     ))}
                   </div>
-                  {fixedDepositOpeningTransactionIDs.has(transaction.id) ? (
+                  {fixedDepositTransactionIDs.has(transaction.id) ? (
                     <p className="mt-4 border-t border-[var(--line)] pt-3 text-xs text-[var(--muted)]">Managed through the linked fixed-deposit contract.</p>
                   ) : (
                     <TransactionAuditActions
@@ -233,4 +246,10 @@ function formatMoney(value: string, currency: string) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value.length === 10 ? `${value}T00:00:00Z` : value));
+}
+
+function lifecycleLabel(deposit: FixedDeposit) {
+  if (deposit.status === "closed") return "Closed";
+  if (deposit.status === "maturity_due") return "Maturity due";
+  return `${deposit.days_to_maturity} days remaining`;
 }
