@@ -201,6 +201,14 @@ purchases, sales, fees, or taxes. The backend validates every row and writes the
 entire file in one database transaction; any failure rolls back all rows. See
 `docs/transaction-csv-import.md` for the exact header and validation rules.
 
+## Portfolio Summary Export
+
+The portfolio page exports a deterministic current summary CSV with separate
+rows for per-currency totals, ledger-derived holdings and cash, allocation,
+missing-price disclosures, and metric definitions. It performs no currency
+conversion or inferred valuation. See `docs/portfolio-summary-export.md` for
+the row schema.
+
 ## Weekly Performance Snapshots
 
 Create immutable weekly performance snapshots for every active portfolio by

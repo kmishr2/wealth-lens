@@ -98,6 +98,9 @@ export default async function PortfolioPage({
           <a className="focus-ring rounded-xl border border-[var(--line)] bg-white px-4 py-3 text-sm font-semibold text-[var(--brand)]" href={`/portfolios/${portfolio.id}/exports/transactions`}>
             Export ledger
           </a>
+          <a className="focus-ring rounded-xl border border-[var(--line)] bg-white px-4 py-3 text-sm font-semibold text-[var(--brand)]" href={`/portfolios/${portfolio.id}/exports/summary`}>
+            Export summary
+          </a>
           <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-4 sm:min-w-36">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
             Accounts
