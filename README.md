@@ -92,6 +92,10 @@ This project prioritizes:
 
 Currently in active development.
 
+For a complete implemented-feature inventory, architecture, database design,
+application flows, API map, and testing guide, see
+[`docs/complete-project-guide.md`](docs/complete-project-guide.md).
+
 ## Setup commands for DB Testing
 
 ```bash
